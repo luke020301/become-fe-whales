@@ -1,355 +1,274 @@
-# SPECS — BECOME FE: Whales Market (React + Tailwind)
+# SPECS — Whales Market Frontend Clone
 
-> **Cuộc thi nội bộ — Cook Series** | Supervisor: Lucas (CTO)
-> Tài liệu nội bộ — không chia sẻ ra bên ngoài.
-
----
-
-## 1. Mục tiêu
-
-Chuyển đổi design Figma của **Whales Market** thành một web app React chạy được thật — nhiều trang, có điều hướng, có logic tương tác FE, hiển thị mock data. **Không cần backend.**
-
-Tiêu chí thành công: BGK có thể ngồi thao tác trực tiếp trên app — navigate các trang, bấm nút, filter, search — mọi thứ đều có phản hồi. Không có "nút chết".
+> Internal competition — Cook Series | Supervisor: Lucas (CTO)
 
 ---
 
-## 2. Stack kỹ thuật bắt buộc
+## 1. Objective
 
-| Thành phần | Yêu cầu |
-|-----------|---------|
-| Framework | **React** (Vite template) |
-| Styling | **Tailwind CSS** |
-| Routing | React Router v6 (hoặc tương đương) |
-| Language | TypeScript (khuyến nghị) hoặc JavaScript |
-| Dev server | `npm run dev` → mở trên browser |
-| Data | Mock data JSON/hardcode — không cần API thật |
+Build a **Whales Market** frontend clone — a dark-themed crypto pre-market DEX web app using React. The app must have multiple pages, client-side routing, interactive FE logic, and mock data. **No backend required.**
+
+Success criteria: judges can sit down and use the app — navigate pages, click buttons, filter listings, open modals — everything responds. No dead UI.
 
 ---
 
-## 3. Các trang (Pages) cần xây dựng
+## 2. Tech Stack
 
-### 3.1 Trang bắt buộc (Minimum)
-
-| # | Trang | Route | Mô tả |
-|---|-------|-------|-------|
-| 1 | **Landing / Home** | `/` | Trang chào mừng, hero section, featured markets |
-| 2 | **Markets** | `/markets` | Danh sách tất cả pre-market tokens, filter/search |
-| 3 | **Market Detail** | `/markets/:id` | Chi tiết một token — giá, orderbook, thông tin |
-
-### 3.2 Trang nên có (Good → Excellent)
-
-| # | Trang | Route | Mô tả |
-|---|-------|-------|-------|
-| 4 | **Portfolio / Dashboard** | `/portfolio` | Tổng quan tài sản người dùng, orders, P&L |
-| 5 | **Points / Leaderboard** | `/points` | Bảng xếp hạng điểm thưởng, ranking người dùng |
-| 6 | **Trade** | `/trade/:id` | Form mua/bán, đặt lệnh, chọn amount |
+| Layer | Technology |
+|-------|-----------|
+| Framework | React 19 + TypeScript |
+| Styling | Tailwind CSS v4 |
+| Routing | React Router DOM v6 |
+| Build tool | Vite |
+| Data | Mock JSON — no real API needed |
 
 ---
 
-## 4. Chi tiết tính năng từng trang
+## 3. Design System
 
-### 4.1 Landing / Home (`/`)
+| Token | Value |
+|-------|-------|
+| Page background | `#0B0E17` |
+| Card background | `#161B28` |
+| Border | `#252D3D` |
+| Primary accent | `#7C3AED` (purple) |
+| Primary text | `#F1F5F9` |
+| Muted text | `#64748B` |
+| Success / Buy | `#22C55E` |
+| Danger / Sell | `#EF4444` |
+
+---
+
+## 4. Pages
+
+### 4.1 Home — `/`
 
 **Layout:**
-- Navbar: logo, menu links, connect wallet button (mock)
-- Hero section: headline, subtext, CTA button "Explore Markets"
-- Featured Markets: grid/list hiển thị 3–6 token nổi bật (mock data)
-- Stats section: Total Volume, Active Markets, số lượng traders (mock numbers)
-- Footer: links, social icons
+- Navbar: logo "🐋 WhalesMarket", nav links, Connect Wallet button (opens mock modal)
+- Hero section: large headline, subtext, two CTA buttons ("Explore Markets", "Learn More")
+- Stats bar: Total Volume, Active Listings, Supported Chains (mock numbers)
+- Featured Listings: grid of 3 highlight cards
+- Footer: nav links + supported chains list
 
 **Interactions:**
-- [ ] CTA button → navigate to `/markets`
-- [ ] Click vào featured market card → navigate to `/markets/:id`
-- [ ] Connect Wallet button → mở modal (mock, không cần wallet thật)
-- [ ] Navbar links → navigate đúng page
-
-**Mock data cần:**
-```json
-{
-  "featuredMarkets": [
-    { "id": "1", "name": "TOKEN_A", "price": "0.045 USDC", "change": "+12.5%", "volume": "2.3M" }
-  ],
-  "stats": { "totalVolume": "$45.2M", "activeMarkets": 48, "traders": "12,400" }
-}
-```
+- [ ] "Explore Markets" → navigate to `/marketplace`
+- [ ] Click listing card → navigate to `/listing/:id`
+- [ ] "Connect Wallet" → open ConnectWalletModal (mock, no real wallet)
+- [ ] Navbar links → navigate to correct pages
 
 ---
 
-### 4.2 Markets (`/markets`)
+### 4.2 Marketplace — `/marketplace`
 
 **Layout:**
-- Header: tiêu đề, số lượng markets
-- Search bar: tìm kiếm theo tên token
-- Filter bar: All / Active / Upcoming / Ended (tabs hoặc dropdown)
-- Sort: Price, Volume, Change (dropdown hoặc column header click)
-- Market list/grid: cards hoặc table rows
-- Pagination hoặc "Load more" (nếu nhiều items)
-
-**Market Card gồm:**
-- Token logo + tên
-- Giá hiện tại
-- % thay đổi (xanh/đỏ)
-- Volume 24h
-- Trạng thái: Active / Upcoming / Ended
-- Button "Trade" → navigate to `/trade/:id`
+- Header: title + total listing count
+- Search bar: real-time filter by token name
+- Filter tabs: All / Pre-Market / OTC / Points
+- Sort dropdown: Newest / Price High→Low / Volume
+- Listing grid: 3 columns desktop, 1 column mobile
+- Each `ListingCard`: token logo, name, type badge, price, chain, "View" button
 
 **Interactions:**
-- [ ] Search → filter danh sách theo tên token (real-time)
-- [ ] Filter tabs (All/Active/Upcoming/Ended) → filter danh sách
-- [ ] Sort dropdown → sắp xếp danh sách
-- [ ] Click card → navigate to `/markets/:id`
-- [ ] Click "Trade" → navigate to `/trade/:id`
-
-**Mock data cần:**
-```json
-[
-  {
-    "id": "1",
-    "name": "EIGEN",
-    "symbol": "EIGEN",
-    "logo": "/logos/eigen.png",
-    "price": "0.045",
-    "currency": "USDC",
-    "change24h": "+12.5",
-    "volume24h": "2300000",
-    "status": "active",
-    "totalSupply": "1000000000"
-  }
-]
-```
+- [ ] Search input → real-time filter by name
+- [ ] Filter tabs → filter by listing type
+- [ ] Sort dropdown → reorder listing list
+- [ ] Click card or "View" button → navigate to `/listing/:id`
 
 ---
 
-### 4.3 Market Detail (`/markets/:id`)
+### 4.3 Listing Detail — `/listing/:id`
 
 **Layout:**
 - Breadcrumb: Home > Markets > TOKEN_NAME
-- Token header: logo, tên, giá, % change, volume
-- Tabs: Overview / Orderbook / Trades / Info
-- **Tab Overview:** price chart area (mock static chart hoặc simple bars), key stats
-- **Tab Orderbook:** bảng Buy orders và Sell orders (mock data)
-- **Tab Trades:** lịch sử giao dịch gần đây (mock data)
-- **Tab Info:** mô tả token, tokenomics, links
-- Sidebar (desktop): quick trade widget
+- Token header: logo, name, type badge, current price, key stats (24h volume, total offers, chain)
+- Tabs: Overview / Offers / Activity
+  - **Overview**: project description, tokenomics, key info
+  - **Offers**: table of open offers (price, amount, expiry, action button)
+  - **Activity**: recent trade history
+- Sidebar (desktop): current price + "Buy Now" button → opens BuyModal
 
-**Orderbook Mock:**
-```json
-{
-  "bids": [
-    { "price": "0.044", "amount": "5000", "total": "220" }
-  ],
-  "asks": [
-    { "price": "0.046", "amount": "3200", "total": "147.2" }
-  ]
-}
-```
+**BuyModal:**
+- Amount input
+- Auto-calculated Total = amount × price
+- "Confirm" button → closes modal + shows Toast "Order placed!"
 
 **Interactions:**
-- [ ] Tabs switch → hiển thị đúng nội dung tab
-- [ ] "Buy" / "Sell" button trong sidebar → navigate to `/trade/:id` hoặc mở modal
-- [ ] Breadcrumb links → navigate đúng
+- [ ] Tab switch → renders correct tab content
+- [ ] "Buy Now" → opens BuyModal
+- [ ] BuyModal: typing amount → total auto-updates
+- [ ] Confirm → dismisses modal + shows toast
+- [ ] Breadcrumb links → navigate correctly
 
 ---
 
-### 4.4 Portfolio / Dashboard (`/portfolio`)
+### 4.4 Portfolio — `/portfolio`
 
 **Layout:**
-- Summary cards: Total Value, Total P&L, Active Orders
-- Tabs: Holdings / Open Orders / Order History
-- **Holdings tab:** bảng các token đang giữ (mock)
-- **Open Orders tab:** bảng lệnh đang chờ khớp (mock)
-- **Order History tab:** lịch sử lệnh đã thực hiện (mock)
+- Summary cards: Active Orders, Total Value, Unrealized P&L
+- Tabs: Active Orders / History
+- Active Orders table: token, type, amount, price, status, Cancel button
+- History table: completed/cancelled orders
 
 **Interactions:**
-- [ ] Tab switch → đổi nội dung bảng
-- [ ] "Cancel Order" button → xóa item khỏi Open Orders list (state update)
-- [ ] Click token name → navigate to `/markets/:id`
+- [ ] Tab switch → swaps table content
+- [ ] Cancel Order → removes item from Active Orders list (local state, no API)
 
 ---
 
-### 4.5 Points / Leaderboard (`/points`)
+## 5. Components
 
-**Layout:**
-- Header: Your Points, Your Rank
-- Leaderboard table: rank, avatar, address (short), points, volume
-- Pagination: 10–20 rows/page
-
-**Interactions:**
-- [ ] Pagination → đổi trang danh sách
-- [ ] Hiển thị highlight row của "current user" (mock)
-
----
-
-### 4.6 Trade (`/trade/:id`)
-
-**Layout:**
-- Token info header
-- Buy / Sell toggle tabs
-- Form: Amount input, Price input (limit/market toggle), Total tự tính
-- Submit button: "Place Buy Order" / "Place Sell Order"
-- Recent trades sidebar
-
-**Interactions:**
-- [ ] Buy/Sell toggle → đổi màu form (xanh/đỏ) và label button
-- [ ] Amount input + Price input → tự tính Total
-- [ ] Limit/Market toggle → ẩn/hiện Price input field
-- [ ] Submit button → hiện toast notification "Order placed!" (mock, không gửi API)
-- [ ] Form validation: không cho submit khi amount = 0 hoặc rỗng
+| Component | Description |
+|-----------|-------------|
+| `Navbar` | Logo + nav links + Connect Wallet button |
+| `Footer` | Nav links + chain badges |
+| `ListingCard` | Listing card used on Home + Marketplace |
+| `StatusBadge` | Pill badge: Pre-Market / OTC / Points / Active / Filled |
+| `BuyModal` | Amount input, auto-total, confirm action |
+| `ConnectWalletModal` | Mock wallet selector (no real wallet integration) |
+| `Toast` | Temporary notification (order placed, order cancelled) |
+| `SearchInput` | Search input with icon |
+| `FilterTabs` | Horizontal tab row for filtering |
 
 ---
 
-## 5. Components tái sử dụng
-
-| Component | Mô tả |
-|-----------|-------|
-| `Navbar` | Logo + links + Connect Wallet button |
-| `Footer` | Links + socials |
-| `MarketCard` | Card hiển thị token info |
-| `TokenBadge` | Logo + symbol nhỏ |
-| `PriceTag` | Giá + màu xanh/đỏ theo % change |
-| `StatusBadge` | Active / Upcoming / Ended pill |
-| `DataTable` | Bảng dữ liệu tái sử dụng (orderbook, history) |
-| `Modal` | Overlay modal (Connect Wallet, confirm, ...) |
-| `Toast` | Thông báo tạm thời (order placed, error) |
-| `SearchInput` | Input tìm kiếm với icon |
-| `FilterTabs` | Row các tab filter |
-| `Skeleton` | Loading placeholder (nếu muốn polish) |
-
----
-
-## 6. Cấu trúc thư mục
+## 6. Directory Structure
 
 ```
 src/
 ├── pages/
 │   ├── Home.tsx
-│   ├── Markets.tsx
-│   ├── MarketDetail.tsx
-│   ├── Portfolio.tsx
-│   ├── Points.tsx
-│   └── Trade.tsx
+│   ├── Marketplace.tsx
+│   ├── ListingDetail.tsx
+│   └── Portfolio.tsx
 ├── components/
 │   ├── Navbar.tsx
 │   ├── Footer.tsx
-│   ├── MarketCard.tsx
-│   ├── Modal.tsx
+│   ├── ListingCard.tsx
+│   ├── StatusBadge.tsx
+│   ├── BuyModal.tsx
+│   ├── ConnectWalletModal.tsx
 │   ├── Toast.tsx
-│   └── ...
+│   ├── SearchInput.tsx
+│   └── FilterTabs.tsx
 ├── mock-data/
-│   ├── markets.json
-│   ├── orderbook.json
-│   ├── trades.json
-│   ├── portfolio.json
-│   └── leaderboard.json
-├── App.tsx          ← routing
+│   ├── listings.json
+│   └── portfolio.json
+├── App.tsx          ← routing setup
 ├── main.tsx
 └── index.css        ← Tailwind directives
 
 public/
-└── logos/           ← token logos
+└── (static assets)
 
 ai-showcase/
-└── *.png            ← screenshot các prompt AI hay
+└── *.png            ← AI prompt screenshots
 ```
 
 ---
 
-## 7. Yêu cầu visual (Pixel Accuracy)
+## 7. Mock Data Shapes
 
-- Layout khớp Figma: grid, spacing, padding, margin
-- Typography đúng: font-size, font-weight, line-height
-- Colors đúng: primary, secondary, success (xanh), danger (đỏ), background, border
-- Responsive: desktop (1280px+) và mobile (375px) — ít nhất desktop phải đúng
-- Hover states: buttons, links, cards phải có hover effect
-- Transitions: mượt khi switch tab, mở modal
+### `listings.json` — 20 entries
+```json
+[
+  {
+    "id": "1",
+    "name": "EigenLayer",
+    "symbol": "EIGEN",
+    "logo": "https://assets.coingecko.com/coins/images/33799/thumb/eigen.png",
+    "type": "Pre-Market",
+    "price": "3.25",
+    "currency": "USDC",
+    "chain": "Ethereum",
+    "status": "active",
+    "volume24h": "1250000",
+    "totalOffers": 42,
+    "expiry": "2025-03-15",
+    "description": "EigenLayer is a restaking protocol built on Ethereum."
+  }
+]
+```
+
+### `portfolio.json`
+```json
+{
+  "activeOrders": [
+    {
+      "id": "ord-1",
+      "token": "EIGEN",
+      "type": "Pre-Market",
+      "amount": "500",
+      "price": "3.25",
+      "total": "1625",
+      "status": "Pending",
+      "date": "2025-02-20"
+    }
+  ],
+  "history": []
+}
+```
 
 ---
 
-## 8. Tiêu chí chấm điểm
+## 8. Scoring Criteria
 
-| Tiêu chí | Điểm | Cách đạt điểm cao |
-|----------|------|------------------|
-| **Khả năng tận dụng AI** | 30 | Show workflow tư duy cùng AI, iterate nhiều lần, AI Showcase thuyết phục |
-| **Pixel Accuracy & Logic FE** | 25 | Layout khớp Figma, filter/search/modal/tab hoạt động, mock data đúng |
-| **Hoàn thiện & Nhiệt huyết** | 20 | Càng nhiều pages + features đúng scope càng cao điểm |
-| **Responsive & Interaction Polish** | 15 | Mobile responsive, hover states, animation, transition |
-| **Trình bày** | 10 | Present rõ, demo mượt, trả lời Q&A tự tin |
-| **Tổng** | **100** | |
+| Criteria | Points | How to score high |
+|----------|--------|-------------------|
+| **AI Utilization** | 30 | Iterate with AI multiple times, compelling AI Showcase with clear workflow |
+| **Pixel Accuracy & FE Logic** | 25 | Dark theme layout accurate, filter/modal/toast all functional |
+| **Completeness & Effort** | 20 | All 4 pages, full mock data, no empty placeholders |
+| **Responsive & Interaction Polish** | 15 | Mobile responsive, hover states, smooth transitions |
+| **Presentation** | 10 | Clear live demo, confident Q&A |
+| **Total** | **100** | |
 
 ---
 
-## 9. Mức độ hoàn thiện
+## 9. Quality Levels
 
-### Minimum (bắt buộc mọi người phải đạt)
-- `npm run dev` chạy không lỗi
-- Ít nhất 3 pages render được
-- Navigate giữa các trang hoạt động
-- Layout desktop gần đúng Figma
-- Không có nút chết — bấm phải có phản hồi
+### Minimum (everyone must reach)
+- `npm run dev` runs without errors
+- At least 3 pages render
+- Navigation works between pages
+- Dark theme layout visible
 
 ### Good
-- Pixel-accurate với Figma
-- Search và filter hoạt động
-- Ít nhất 1 modal
-- Mock data hiển thị đúng
-- Responsive mobile cơ bản
+- All 4 pages implemented
+- Search + filter tabs working
+- BuyModal opens and auto-calculates total
+- Toast notification on order confirm
+- Basic mobile responsive
 
 ### Excellent
-- Tất cả 6 pages đầy đủ tính năng
-- Smooth transitions/animations
-- Toast notifications hoạt động
-- Form validation
-- Responsive hoàn chỉnh cả desktop lẫn mobile
-- Gần như dùng được thật (chỉ thiếu BE)
+- Smooth transitions and animations
+- ConnectWalletModal
+- Portfolio cancel order removes from list
+- Hover states on all cards and buttons
+- Zero console errors
 
 ---
 
-## 10. AI Showcase — Cần chuẩn bị
+## 10. Pre-Presentation Checklist
 
-Tối thiểu **3–5 ví dụ** gồm:
-
-1. **Setup prompt** — nhờ AI khởi tạo project React + Tailwind + React Router
-2. **Figma → Component** — cách mô tả design Figma cho AI viết component
-3. **Iterate loop** — feedback → AI sửa → kết quả tốt hơn (show before/after)
-4. **Bug fix** — AI giúp giải quyết 1 vấn đề layout/logic khó
-5. **Workflow** — Figma MCP + AI tool phối hợp như thế nào
-
-Lưu screenshot vào thư mục `ai-showcase/`.
-
----
-
-## 11. Deliverables khi present
-
-- [ ] `npm run dev` chạy không lỗi, browser hiện app
-- [ ] Ít nhất 3 pages, navigate hoạt động
-- [ ] Không có nút chết — click đều có phản hồi
-- [ ] Mock data hiển thị, không có placeholder rỗng
-- [ ] Ít nhất 1 filter/search hoạt động
-- [ ] Ít nhất 1 modal hoạt động
-- [ ] So sánh Figma vs browser sẵn sàng
-- [ ] GitHub repo public, link đã gửi vào Telegram
-- [ ] Push code cuối ngày 1, 2, 3
-- [ ] AI Showcase 3–5 ví dụ sẵn sàng
-- [ ] Không có lỗi console trong browser
+- [ ] `npm run dev` runs without errors
+- [ ] 4 pages render, routing works
+- [ ] Real-time search works on Marketplace
+- [ ] Filter tabs work
+- [ ] BuyModal opens/closes, total auto-calculates
+- [ ] Toast appears on order confirm
+- [ ] Cancel order removes item from Portfolio list
+- [ ] Mock data fully displayed — no empty placeholders
+- [ ] GitHub repo is public and link sent to Telegram
+- [ ] Code pushed at end of Day 1, 2, 3
+- [ ] AI Showcase: 3–5 examples in `ai-showcase/`
+- [ ] No console errors
 
 ---
 
-## 12. Timeline
+## 11. Timeline
 
-| Ngày | Mục tiêu cuối ngày |
-|------|-------------------|
-| **Day 1** | Project khởi chạy (`npm run dev` OK) + repo GitHub public + link gửi vào group |
-| **Day 2** | Các pages chính chạy + routing + mock data hiển thị + push GitHub |
-| **Day 3** | Filter/search/modal/tab hoạt động + pixel accuracy + responsive + push GitHub |
-| **Day 4** | Demo live trước BGK + AI Showcase + Q&A |
-
----
-
-## 13. Tài nguyên
-
-- **Figma design:** Whales Market (xem link được cấp từ Ban Tổ chức)
-- **AI Tools:** Antigravity / Cursor / Claude Code (credit được cấp theo yêu cầu)
-- **Figma MCP:** kết nối AI tool đọc trực tiếp design từ Figma
-- **Hỗ trợ kỹ thuật:** Lucas (CTO) — DM Telegram
-- **Hỗ trợ AI Tool:** Arthur — DM Telegram
-- **Hỗ trợ Product/UX:** Akemi — DM Telegram
+| Day | Goal |
+|-----|------|
+| **Day 1** | Install deps + setup routing + create mock data + Navbar/Footer |
+| **Day 2** | Home page + Marketplace (search/filter) + ListingCard component |
+| **Day 3** | ListingDetail + BuyModal + Portfolio + responsive polish |
+| **Day 4** | Live demo + AI Showcase presentation |
