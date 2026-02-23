@@ -1,113 +1,355 @@
-# Project Spec — BECOME FE: Figma to Live Code (Whales Market)
+# SPECS — BECOME FE: Whales Market (React + Tailwind)
 
-## 1) Overview
-**Goal:** Convert the Whales Market Figma design into a real, runnable **React + Tailwind** web app using AI-assisted coding. The app must have **multiple pages**, **routing/navigation**, **interactive front-end logic**, and **mock data**. No backend required. :contentReference[oaicite:1]{index=1}
+> **Cuộc thi nội bộ — Cook Series** | Supervisor: Lucas (CTO)
+> Tài liệu nội bộ — không chia sẻ ra bên ngoài.
 
-This is a build-an-app exercise (not static HTML screenshots). Any button/link that does nothing is considered not passing minimum requirements. :contentReference[oaicite:2]{index=2}
+---
 
-## 2) In Scope
-### 2.1 Mandatory Technical Requirements
-- React
-- Tailwind CSS :contentReference[oaicite:3]{index=3}
-- Local runnable dev flow: `npm run dev` starts the app and opens in browser :contentReference[oaicite:4]{index=4}
+## 1. Mục tiêu
 
-### 2.2 Mandatory Product Requirements
-- Multiple pages (at least 3 recommended) :contentReference[oaicite:5]{index=5}
-- Routing/navigation between pages (React Router or equivalent) :contentReference[oaicite:6]{index=6}
-- Interactive FE logic works:
-  - click handlers (buttons/links)
-  - filters/toggles/tabs/modals
-  - form inputs
-  - search/sort (at least one) :contentReference[oaicite:7]{index=7}
-- Data displayed via mock data (JSON/hardcode), no real API required :contentReference[oaicite:8]{index=8}
+Chuyển đổi design Figma của **Whales Market** thành một web app React chạy được thật — nhiều trang, có điều hướng, có logic tương tác FE, hiển thị mock data. **Không cần backend.**
 
-### 2.3 Visual Requirements
-- Pixel-accuracy compared to Figma:
-  - layout
-  - spacing
-  - typography
-  - colors
-  - responsive behavior :contentReference[oaicite:9]{index=9}
+Tiêu chí thành công: BGK có thể ngồi thao tác trực tiếp trên app — navigate các trang, bấm nút, filter, search — mọi thứ đều có phản hồi. Không có "nút chết".
 
-## 3) Out of Scope
-- Backend services, databases, auth server, real trading logic
-- Real API integration (optional; not required)
-- Production deployment (optional; local demo is required)
+---
 
-## 4) Deliverables (What must be submitted)
-### 4.1 Live Demo App (Local)
-- App runs locally: `npm run dev`
-- Browser shows the app
-- Multiple pages render and navigation works
-- No “dead” UI: clicking must produce an action (navigate, open modal, toggle, filter, etc.)
-- Mock data displays correctly
-- Judges can interact directly during demo :contentReference[oaicite:10]{index=10}
+## 2. Stack kỹ thuật bắt buộc
 
-### 4.2 Figma vs Output Comparison
-- Present with Figma side-by-side (left) and browser (right)
-- Judges assess pixel accuracy and responsive behavior :contentReference[oaicite:11]{index=11}
+| Thành phần | Yêu cầu |
+|-----------|---------|
+| Framework | **React** (Vite template) |
+| Styling | **Tailwind CSS** |
+| Routing | React Router v6 (hoặc tương đương) |
+| Language | TypeScript (khuyến nghị) hoặc JavaScript |
+| Dev server | `npm run dev` → mở trên browser |
+| Data | Mock data JSON/hardcode — không cần API thật |
 
-### 4.3 AI Showcase (Minimum 3–5 examples)
-Provide screenshots or links of your best AI prompts/conversations showing:
-- environment/project setup prompt
-- converting Figma → React components
-- iteration loop: feedback → AI fix → improved result
-- AI solving a difficult bug/layout issue
-- workflow and tool usage (Antigravity/Cursor/Claude Code + optionally Figma MCP) :contentReference[oaicite:12]{index=12}
+---
 
-## 5) Quality Bar (Rubric Levels)
-### 5.1 Minimum (Everyone must reach)
-- Multiple pages
-- Routing works
-- Layout is close to Figma (desktop view)
-- App runs locally and is demo-able :contentReference[oaicite:13]{index=13}
+## 3. Các trang (Pages) cần xây dựng
 
-### 5.2 Good
-- Pixel-accurate UI
-- Functional interactions (filter/toggle/modal/tab)
-- Mock data correct
-- Mobile responsive :contentReference[oaicite:14]{index=14}
+### 3.1 Trang bắt buộc (Minimum)
 
-### 5.3 Excellent
-- Complete flow like a real app
+| # | Trang | Route | Mô tả |
+|---|-------|-------|-------|
+| 1 | **Landing / Home** | `/` | Trang chào mừng, hero section, featured markets |
+| 2 | **Markets** | `/markets` | Danh sách tất cả pre-market tokens, filter/search |
+| 3 | **Market Detail** | `/markets/:id` | Chi tiết một token — giá, orderbook, thông tin |
+
+### 3.2 Trang nên có (Good → Excellent)
+
+| # | Trang | Route | Mô tả |
+|---|-------|-------|-------|
+| 4 | **Portfolio / Dashboard** | `/portfolio` | Tổng quan tài sản người dùng, orders, P&L |
+| 5 | **Points / Leaderboard** | `/points` | Bảng xếp hạng điểm thưởng, ranking người dùng |
+| 6 | **Trade** | `/trade/:id` | Form mua/bán, đặt lệnh, chọn amount |
+
+---
+
+## 4. Chi tiết tính năng từng trang
+
+### 4.1 Landing / Home (`/`)
+
+**Layout:**
+- Navbar: logo, menu links, connect wallet button (mock)
+- Hero section: headline, subtext, CTA button "Explore Markets"
+- Featured Markets: grid/list hiển thị 3–6 token nổi bật (mock data)
+- Stats section: Total Volume, Active Markets, số lượng traders (mock numbers)
+- Footer: links, social icons
+
+**Interactions:**
+- [ ] CTA button → navigate to `/markets`
+- [ ] Click vào featured market card → navigate to `/markets/:id`
+- [ ] Connect Wallet button → mở modal (mock, không cần wallet thật)
+- [ ] Navbar links → navigate đúng page
+
+**Mock data cần:**
+```json
+{
+  "featuredMarkets": [
+    { "id": "1", "name": "TOKEN_A", "price": "0.045 USDC", "change": "+12.5%", "volume": "2.3M" }
+  ],
+  "stats": { "totalVolume": "$45.2M", "activeMarkets": 48, "traders": "12,400" }
+}
+```
+
+---
+
+### 4.2 Markets (`/markets`)
+
+**Layout:**
+- Header: tiêu đề, số lượng markets
+- Search bar: tìm kiếm theo tên token
+- Filter bar: All / Active / Upcoming / Ended (tabs hoặc dropdown)
+- Sort: Price, Volume, Change (dropdown hoặc column header click)
+- Market list/grid: cards hoặc table rows
+- Pagination hoặc "Load more" (nếu nhiều items)
+
+**Market Card gồm:**
+- Token logo + tên
+- Giá hiện tại
+- % thay đổi (xanh/đỏ)
+- Volume 24h
+- Trạng thái: Active / Upcoming / Ended
+- Button "Trade" → navigate to `/trade/:id`
+
+**Interactions:**
+- [ ] Search → filter danh sách theo tên token (real-time)
+- [ ] Filter tabs (All/Active/Upcoming/Ended) → filter danh sách
+- [ ] Sort dropdown → sắp xếp danh sách
+- [ ] Click card → navigate to `/markets/:id`
+- [ ] Click "Trade" → navigate to `/trade/:id`
+
+**Mock data cần:**
+```json
+[
+  {
+    "id": "1",
+    "name": "EIGEN",
+    "symbol": "EIGEN",
+    "logo": "/logos/eigen.png",
+    "price": "0.045",
+    "currency": "USDC",
+    "change24h": "+12.5",
+    "volume24h": "2300000",
+    "status": "active",
+    "totalSupply": "1000000000"
+  }
+]
+```
+
+---
+
+### 4.3 Market Detail (`/markets/:id`)
+
+**Layout:**
+- Breadcrumb: Home > Markets > TOKEN_NAME
+- Token header: logo, tên, giá, % change, volume
+- Tabs: Overview / Orderbook / Trades / Info
+- **Tab Overview:** price chart area (mock static chart hoặc simple bars), key stats
+- **Tab Orderbook:** bảng Buy orders và Sell orders (mock data)
+- **Tab Trades:** lịch sử giao dịch gần đây (mock data)
+- **Tab Info:** mô tả token, tokenomics, links
+- Sidebar (desktop): quick trade widget
+
+**Orderbook Mock:**
+```json
+{
+  "bids": [
+    { "price": "0.044", "amount": "5000", "total": "220" }
+  ],
+  "asks": [
+    { "price": "0.046", "amount": "3200", "total": "147.2" }
+  ]
+}
+```
+
+**Interactions:**
+- [ ] Tabs switch → hiển thị đúng nội dung tab
+- [ ] "Buy" / "Sell" button trong sidebar → navigate to `/trade/:id` hoặc mở modal
+- [ ] Breadcrumb links → navigate đúng
+
+---
+
+### 4.4 Portfolio / Dashboard (`/portfolio`)
+
+**Layout:**
+- Summary cards: Total Value, Total P&L, Active Orders
+- Tabs: Holdings / Open Orders / Order History
+- **Holdings tab:** bảng các token đang giữ (mock)
+- **Open Orders tab:** bảng lệnh đang chờ khớp (mock)
+- **Order History tab:** lịch sử lệnh đã thực hiện (mock)
+
+**Interactions:**
+- [ ] Tab switch → đổi nội dung bảng
+- [ ] "Cancel Order" button → xóa item khỏi Open Orders list (state update)
+- [ ] Click token name → navigate to `/markets/:id`
+
+---
+
+### 4.5 Points / Leaderboard (`/points`)
+
+**Layout:**
+- Header: Your Points, Your Rank
+- Leaderboard table: rank, avatar, address (short), points, volume
+- Pagination: 10–20 rows/page
+
+**Interactions:**
+- [ ] Pagination → đổi trang danh sách
+- [ ] Hiển thị highlight row của "current user" (mock)
+
+---
+
+### 4.6 Trade (`/trade/:id`)
+
+**Layout:**
+- Token info header
+- Buy / Sell toggle tabs
+- Form: Amount input, Price input (limit/market toggle), Total tự tính
+- Submit button: "Place Buy Order" / "Place Sell Order"
+- Recent trades sidebar
+
+**Interactions:**
+- [ ] Buy/Sell toggle → đổi màu form (xanh/đỏ) và label button
+- [ ] Amount input + Price input → tự tính Total
+- [ ] Limit/Market toggle → ẩn/hiện Price input field
+- [ ] Submit button → hiện toast notification "Order placed!" (mock, không gửi API)
+- [ ] Form validation: không cho submit khi amount = 0 hoặc rỗng
+
+---
+
+## 5. Components tái sử dụng
+
+| Component | Mô tả |
+|-----------|-------|
+| `Navbar` | Logo + links + Connect Wallet button |
+| `Footer` | Links + socials |
+| `MarketCard` | Card hiển thị token info |
+| `TokenBadge` | Logo + symbol nhỏ |
+| `PriceTag` | Giá + màu xanh/đỏ theo % change |
+| `StatusBadge` | Active / Upcoming / Ended pill |
+| `DataTable` | Bảng dữ liệu tái sử dụng (orderbook, history) |
+| `Modal` | Overlay modal (Connect Wallet, confirm, ...) |
+| `Toast` | Thông báo tạm thời (order placed, error) |
+| `SearchInput` | Input tìm kiếm với icon |
+| `FilterTabs` | Row các tab filter |
+| `Skeleton` | Loading placeholder (nếu muốn polish) |
+
+---
+
+## 6. Cấu trúc thư mục
+
+```
+src/
+├── pages/
+│   ├── Home.tsx
+│   ├── Markets.tsx
+│   ├── MarketDetail.tsx
+│   ├── Portfolio.tsx
+│   ├── Points.tsx
+│   └── Trade.tsx
+├── components/
+│   ├── Navbar.tsx
+│   ├── Footer.tsx
+│   ├── MarketCard.tsx
+│   ├── Modal.tsx
+│   ├── Toast.tsx
+│   └── ...
+├── mock-data/
+│   ├── markets.json
+│   ├── orderbook.json
+│   ├── trades.json
+│   ├── portfolio.json
+│   └── leaderboard.json
+├── App.tsx          ← routing
+├── main.tsx
+└── index.css        ← Tailwind directives
+
+public/
+└── logos/           ← token logos
+
+ai-showcase/
+└── *.png            ← screenshot các prompt AI hay
+```
+
+---
+
+## 7. Yêu cầu visual (Pixel Accuracy)
+
+- Layout khớp Figma: grid, spacing, padding, margin
+- Typography đúng: font-size, font-weight, line-height
+- Colors đúng: primary, secondary, success (xanh), danger (đỏ), background, border
+- Responsive: desktop (1280px+) và mobile (375px) — ít nhất desktop phải đúng
+- Hover states: buttons, links, cards phải có hover effect
+- Transitions: mượt khi switch tab, mở modal
+
+---
+
+## 8. Tiêu chí chấm điểm
+
+| Tiêu chí | Điểm | Cách đạt điểm cao |
+|----------|------|------------------|
+| **Khả năng tận dụng AI** | 30 | Show workflow tư duy cùng AI, iterate nhiều lần, AI Showcase thuyết phục |
+| **Pixel Accuracy & Logic FE** | 25 | Layout khớp Figma, filter/search/modal/tab hoạt động, mock data đúng |
+| **Hoàn thiện & Nhiệt huyết** | 20 | Càng nhiều pages + features đúng scope càng cao điểm |
+| **Responsive & Interaction Polish** | 15 | Mobile responsive, hover states, animation, transition |
+| **Trình bày** | 10 | Present rõ, demo mượt, trả lời Q&A tự tin |
+| **Tổng** | **100** | |
+
+---
+
+## 9. Mức độ hoàn thiện
+
+### Minimum (bắt buộc mọi người phải đạt)
+- `npm run dev` chạy không lỗi
+- Ít nhất 3 pages render được
+- Navigate giữa các trang hoạt động
+- Layout desktop gần đúng Figma
+- Không có nút chết — bấm phải có phản hồi
+
+### Good
+- Pixel-accurate với Figma
+- Search và filter hoạt động
+- Ít nhất 1 modal
+- Mock data hiển thị đúng
+- Responsive mobile cơ bản
+
+### Excellent
+- Tất cả 6 pages đầy đủ tính năng
 - Smooth transitions/animations
-- Strong responsive behavior
-- Nearly production-ready FE (still no BE) :contentReference[oaicite:15]{index=15}
+- Toast notifications hoạt động
+- Form validation
+- Responsive hoàn chỉnh cả desktop lẫn mobile
+- Gần như dùng được thật (chỉ thiếu BE)
 
-## 6) Scoring Criteria
-- AI utilization: 30
-- Pixel accuracy & FE logic: 25
-- Completeness & effort: 20
-- Responsive & interaction polish: 15
-- Presentation: 10 :contentReference[oaicite:16]{index=16}
+---
 
-## 7) Repository Requirements
-- Public GitHub repository
-- Push progress daily (Day 1–3) :contentReference[oaicite:17]{index=17}
-- Suggested structure: :contentReference[oaicite:18]{index=18}
-  - `src/pages/`
-  - `src/components/`
-  - `src/mock-data/`
-  - `src/App.tsx` (routing)
-  - `public/` (assets)
-  - `ai-showcase/` (screenshots)
+## 10. AI Showcase — Cần chuẩn bị
 
-## 8) Timeline Expectations (4 days)
-- Day 1: setup environment + repo + app runs locally :contentReference[oaicite:19]{index=19}
-- Day 2: convert main pages + routing + mock data :contentReference[oaicite:20]{index=20}
-- Day 3: polish pixel accuracy + add FE logic + responsive + prepare demo & AI showcase :contentReference[oaicite:21]{index=21}
-- Day 4: presentation + live demo + Q&A :contentReference[oaicite:22]{index=22}
+Tối thiểu **3–5 ví dụ** gồm:
 
-## 9) Pre-Presentation Checklist (Acceptance Criteria)
-- [ ] `npm run dev` runs without errors and renders the app :contentReference[oaicite:23]{index=23}
-- [ ] Multiple pages exist and navigation works :contentReference[oaicite:24]{index=24}
-- [ ] No dead buttons/links; interactions produce feedback :contentReference[oaicite:25]{index=25}
-- [ ] Mock data is displayed (no empty placeholders) :contentReference[oaicite:26]{index=26}
-- [ ] FE logic works (filter/search/modal/tab/etc.) :contentReference[oaicite:27]{index=27}
-- [ ] Figma vs browser comparison ready (layout/spacing/typography/colors) :contentReference[oaicite:28]{index=28}
-- [ ] GitHub repo is public and link shared :contentReference[oaicite:29]{index=29}
-- [ ] Daily pushes completed (Day 1–3) :contentReference[oaicite:30]{index=30}
-- [ ] AI showcase prepared (3–5 strong examples) :contentReference[oaicite:31]{index=31}
-- [ ] Responsive mobile behavior (if implemented) :contentReference[oaicite:32]{index=32}
-- [ ] No browser console errors :contentReference[oaicite:33]{index=33}
-- [ ] Ready to share screen and demo live :contentReference[oaicite:34]{index=34}
+1. **Setup prompt** — nhờ AI khởi tạo project React + Tailwind + React Router
+2. **Figma → Component** — cách mô tả design Figma cho AI viết component
+3. **Iterate loop** — feedback → AI sửa → kết quả tốt hơn (show before/after)
+4. **Bug fix** — AI giúp giải quyết 1 vấn đề layout/logic khó
+5. **Workflow** — Figma MCP + AI tool phối hợp như thế nào
+
+Lưu screenshot vào thư mục `ai-showcase/`.
+
+---
+
+## 11. Deliverables khi present
+
+- [ ] `npm run dev` chạy không lỗi, browser hiện app
+- [ ] Ít nhất 3 pages, navigate hoạt động
+- [ ] Không có nút chết — click đều có phản hồi
+- [ ] Mock data hiển thị, không có placeholder rỗng
+- [ ] Ít nhất 1 filter/search hoạt động
+- [ ] Ít nhất 1 modal hoạt động
+- [ ] So sánh Figma vs browser sẵn sàng
+- [ ] GitHub repo public, link đã gửi vào Telegram
+- [ ] Push code cuối ngày 1, 2, 3
+- [ ] AI Showcase 3–5 ví dụ sẵn sàng
+- [ ] Không có lỗi console trong browser
+
+---
+
+## 12. Timeline
+
+| Ngày | Mục tiêu cuối ngày |
+|------|-------------------|
+| **Day 1** | Project khởi chạy (`npm run dev` OK) + repo GitHub public + link gửi vào group |
+| **Day 2** | Các pages chính chạy + routing + mock data hiển thị + push GitHub |
+| **Day 3** | Filter/search/modal/tab hoạt động + pixel accuracy + responsive + push GitHub |
+| **Day 4** | Demo live trước BGK + AI Showcase + Q&A |
+
+---
+
+## 13. Tài nguyên
+
+- **Figma design:** Whales Market (xem link được cấp từ Ban Tổ chức)
+- **AI Tools:** Antigravity / Cursor / Claude Code (credit được cấp theo yêu cầu)
+- **Figma MCP:** kết nối AI tool đọc trực tiếp design từ Figma
+- **Hỗ trợ kỹ thuật:** Lucas (CTO) — DM Telegram
+- **Hỗ trợ AI Tool:** Arthur — DM Telegram
+- **Hỗ trợ Product/UX:** Akemi — DM Telegram
