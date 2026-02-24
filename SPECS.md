@@ -1,7 +1,8 @@
 # SPECS: Whales Market — React App (Become FE)
 
 > **For AI tools (Antigravity / Cursor / Claude Code)**
-> Build a React app from the Whales Market Figma design. No backend required — all data uses mocks (JSON/hardcode).
+> Specifications for building a React app from the Whales Market Figma design.
+> No backend required — all data uses mocks (JSON/hardcode).
 
 ---
 
@@ -17,7 +18,6 @@
 | State | useState / useContext (no Redux) |
 | Mock Data | JSON files in `src/mock-data/` |
 | Build tool | Vite |
-| AI Tools | Antigravity / Cursor / Claude Code |
 
 ### Project Structure
 
@@ -30,7 +30,7 @@ become-fe-whales/
 │   ├── hooks/          # Custom hooks if needed
 │   └── App.tsx         # Routing config
 ├── public/
-├── ai-showcase/        # Screenshots of good AI prompts (min 3–5)
+├── ai-showcase/        # Screenshots of good AI prompts
 ├── README.md
 └── package.json
 ```
@@ -41,8 +41,20 @@ become-fe-whales/
 npm create vite@latest become-fe-whales -- --template react-ts
 cd become-fe-whales
 npm install
+npm install -D tailwindcss postcss autoprefixer
+npx tailwindcss init -p
 npm install react-router-dom
 npm run dev
+```
+
+### Tailwind Config (`tailwind.config.js`)
+
+```js
+export default {
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+  theme: { extend: {} },
+  plugins: [],
+}
 ```
 
 ---
@@ -53,159 +65,171 @@ npm run dev
 
 | Route | Page | Description |
 |-------|------|-------------|
-| `/` | Home | Landing page introducing the platform |
-| `/marketplace` | Marketplace | Filterable listing grid |
-| `/listing/:id` | Listing Detail | Single listing with buy/sell action |
-| `/portfolio` | Portfolio | User asset overview + transaction history |
-| `/profile` | Profile | User info + settings |
-| `/create` | Create Listing | Form to create a new listing |
+| `/` | Landing / Home | Introduction to Whales Market |
+| `/marketplace` | Marketplace | Listings for buying/selling |
+| `/listing/:id` | Listing Detail | Single listing details |
+| `/portfolio` | Portfolio / Dashboard | User asset overview |
+| `/profile` | Profile | User information |
+| `/create` | Create Listing | Form for new listings |
+
+> ⚠️ Adjust routes if Figma design differs — ask AI to read Figma MCP for confirmation.
 
 ---
 
 ### 2.2 Shared Components
 
 #### `<Navbar />`
-- Logo on left
-- Nav links: Home / Marketplace / Portfolio
-- "Connect Wallet" button on right — mock, no real wallet needed
+- Logo Whales Market (left)
+- Navigation links: Home / Marketplace / Portfolio
+- Wallet connect button (right) — mock, no real wallet needed
 - Mobile: hamburger menu
 
 #### `<Button />`
 ```tsx
-// Props: variant ("primary" | "secondary" | "ghost")
-//        size ("sm" | "md" | "lg")
-//        onClick, disabled, children
+// Props: variant ("primary" | "secondary" | "ghost"), size ("sm" | "md" | "lg"),
+// onClick, disabled, children
 ```
 
 #### `<Card />`
-- Container with border-radius, dark background, padding
-- Used for listing cards, portfolio items, stat summaries
+- Container with border-radius, shadow, padding
+- Used for listing cards, portfolio items
 
 #### `<Badge />`
-- Status pill: Active / Pending / Completed / Cancelled / Pre-Market / OTC
-- Each status has a distinct color
+- Status badge: Active / Pending / Completed / Cancelled
+- Colors match each status
 
 #### `<Modal />`
-```tsx
-// Props: isOpen, onClose, title, children
-// Close on overlay click or X button
-```
+- Overlay + centered container
+- Props: isOpen, onClose, title, children
+- Close on overlay click or X button
 
 #### `<Table />`
-```tsx
-// Props: columns, data
-// Supports sorting by column
-```
+- Sortable table for data lists
+- Props: columns, data
 
 #### `<EmptyState />`
-- Shown when no data matches filters
+- Display when no data exists
 - Icon + message + optional CTA button
 
 ---
 
 ### 2.3 Page Details
 
-#### `/` — Home
+#### `/` — Landing / Home
+
+**Purpose:** Introduce the platform and drive users to the marketplace.
 
 **Sections:**
-- Hero: headline + subtext + "Explore Markets" button
-- Stats bar: Total Volume / Active Listings / Supported Chains (hardcoded)
+- Hero: headline + subtext + "Go to Marketplace" button
+- Stats bar: Total Volume / Active Listings / Traders (hardcoded numbers)
 - Featured Listings: 3-card grid from mock data
-- Footer: nav links + supported chains
+- How it works: 3-step process with icons + text
 
 **Interactions:**
-- "Explore Markets" → navigate `/marketplace`
+- Click "Go to Marketplace" → navigate `/marketplace`
 - Click listing card → navigate `/listing/:id`
-- "Connect Wallet" → open `ConnectWalletModal` (mock)
 
 ---
 
 #### `/marketplace` — Marketplace
 
+**Purpose:** View and filter all listings.
+
 **Layout:** Filter sidebar (left) + Listing grid (right)
 
 **Filter Sidebar:**
-- Filter by Type: All / Pre-Market / OTC / Points (tab/radio)
-- Filter by Token: dropdown (ETH, BTC, SOL, BNB...)
-- Filter by Price Range: min/max number inputs
+- Filter by Type: All / Buy / Sell (radio/tab)
+- Filter by Token: dropdown (mock: ETH, BTC, SOL, BNB...)
+- Filter by Price Range: two number inputs (min/max)
 - Filter by Status: Active / Completed / Pending (checkboxes)
 - "Reset Filters" button
 
 **Listing Grid:**
-- 3-column (desktop), 1-column (mobile)
-- Each card: token icon, name, price, amount, type badge, status, "View" button
-- Sort bar: by Price / Volume / Date
-- Result count: "Showing 12 of 20 listings"
+- 3-column grid (desktop), 1-column (mobile)
+- Each card: token icon + name, price, amount, type badge (Buy/Sell), status, "View Detail" button
+- Sort bar: Sort by Price / Volume / Date (dropdown)
+- Result count: "Showing 12 of 48 listings"
+- Pagination or "Load more" button
 
 **Interactions:**
-- Change filter → instantly update list (filter mock data, no API)
+- Change filter → instantly update list (filter mock data)
 - Sort → re-sort list
-- Click card / "View" → navigate `/listing/:id`
+- Click card / "View Detail" → navigate `/listing/:id`
 
 ---
 
 #### `/listing/:id` — Listing Detail
+
+**Purpose:** View listing details and execute trades (mock).
 
 **Layout:** 2 columns — listing info (left) + action panel (right)
 
 **Listing Info (left):**
 - Token name + icon + network badge
 - Price, Amount, Total Value
-- Type: Buy / Sell (colored badge)
-- Status badge
-- Seller: avatar placeholder + abbreviated wallet `0x1234...abcd`
+- Type: Buy or Sell (colored badge)
+- Status: Active / Completed...
+- Seller info: avatar placeholder + abbreviated wallet (0x1234...abcd)
 - Created at, Expires at
-- Tabs: Overview / Offers / Activity
+- Description / notes
 
 **Action Panel (right):**
-- "Buy Now" button → opens `BuyModal`
-- Amount input + auto-calculated Total = amount × price (readonly)
+- If type = "Sell": "Buy Now" button → open confirm modal
+- If type = "Buy": "Sell to This Order" button → open confirm modal
+- Input for transaction amount (if partial fill allowed)
+- Summary: you pay / receive amounts
 
-**BuyModal:**
+**Confirm Modal:**
+- Title "Confirm Transaction"
 - Transaction summary
-- "Cancel" + "Confirm" buttons
-- Confirm → success toast "Order placed!" + modal closes
+- 2 buttons: "Cancel" + "Confirm" (mock — shows "Transaction submitted!" toast)
 
 **Interactions:**
-- Tab switch → renders correct tab content
-- "Buy Now" → open modal
-- Typing amount → total auto-updates
-- Confirm → dismiss modal + show toast
-- Breadcrumb: Home > Markets > TOKEN_NAME
+- Click Buy/Sell → open modal
+- Confirm modal → success toast + close modal
+- Breadcrumb: Marketplace → Listing Detail
 
 ---
 
-#### `/portfolio` — Portfolio
+#### `/portfolio` — Portfolio / Dashboard
+
+**Purpose:** View asset overview and transaction history.
 
 **Sections:**
 
 *Stats Cards (top):*
-- Total Value / Active Listings / Completed Trades / P&L (mock numbers)
+- Total Value (USD)
+- Active Listings
+- Completed Trades
+- P&L (mock number)
 
-*My Active Orders tab:*
-- Table: Token | Type | Amount | Price | Status | Action
-- "Cancel" on Active items → confirm modal → status becomes "Cancelled"
+*My Listings tab:*
+- Table: Token | Type | Price | Amount | Status | Action
+- Action: "Cancel" (for Active listings) → confirm modal → status update
+- Filter tab: All / Active / Completed / Cancelled
 
 *Transaction History tab:*
 - Table: Date | Token | Type | Amount | Price | Total | Status
-- Sorted by date (newest first)
+- Sort by Date (newest first by default)
 
 **Interactions:**
 - Switch tab → display corresponding data
-- Cancel order → confirm modal → item removed from Active list (local state)
-- Click row → navigate `/listing/:id`
+- Cancel listing → confirm modal → status becomes "Cancelled"
+- Click listing row → navigate `/listing/:id`
 
 ---
 
 #### `/profile` — Profile
 
+**Purpose:** User information page.
+
 **Content:**
 - Avatar (placeholder)
-- Mock wallet address: `0xAbCd...1234`
+- Wallet address (mock: 0xAbCd...1234)
 - Username (editable)
 - Join date
-- Stats: Total Trades / Volume / Rating
-- "Edit Profile" button → inline form or modal
+- Stats: Total trades, Volume, Rating
+- Edit Profile button → inline form or modal (username editable)
 
 **Interactions:**
 - Edit → show form input → Save → update display (local state)
@@ -214,53 +238,73 @@ npm run dev
 
 #### `/create` — Create Listing
 
+**Purpose:** Create a new listing.
+
 **Form Fields:**
 - Token: dropdown (ETH, BTC, SOL, BNB, USDT...)
-- Type: Buy / Sell (toggle)
+- Type: Buy / Sell (toggle/radio)
 - Price per unit: number input (USD)
 - Amount: number input
 - Total Value: auto-calculated = Price × Amount (readonly)
+- Min fill amount: number input (optional)
 - Expiry date: date picker
 - Notes: textarea (optional)
 
 **Validation:**
-- Price and Amount required and > 0
+- Price, Amount required and > 0
 - Expiry date cannot be in the past
-- Inline error messages under fields
+- Show inline error messages under fields
 
-**Submit Flow:**
-- "Create Listing" → validate → open preview modal
+**Submit:**
+- "Create Listing" button → validate → if OK show preview modal
 - Preview modal: listing summary → "Confirm & Submit"
 - Submit → toast "Listing created!" → navigate `/marketplace`
-- New listing appears at top of list
 
 ---
 
 ## 3. Mock Data
 
-### `src/mock-data/listings.json` — 20 entries
+### `src/mock-data/listings.json`
 
 ```json
 [
   {
     "id": "1",
-    "name": "EigenLayer",
-    "symbol": "EIGEN",
-    "logo": "https://assets.coingecko.com/coins/images/33799/thumb/eigen.png",
-    "type": "Pre-Market",
-    "price": "3.25",
-    "currency": "USDC",
-    "chain": "Ethereum",
+    "token": "ETH",
+    "tokenIcon": "https://cryptologos.cc/logos/ethereum-eth-logo.png",
+    "network": "Ethereum",
+    "type": "sell",
+    "price": 2450.00,
+    "amount": 5.5,
+    "totalValue": 13475.00,
     "status": "active",
-    "volume24h": "1250000",
-    "totalOffers": 42,
-    "expiry": "2025-03-15",
-    "description": "EigenLayer is a restaking protocol built on Ethereum."
+    "seller": "0xAbCd...1234",
+    "createdAt": "2024-01-15T10:00:00Z",
+    "expiresAt": "2024-02-15T10:00:00Z",
+    "description": "Selling ETH at market price"
   }
 ]
 ```
 
-> Create at least 20 listings with varied tokens, types (Pre-Market / OTC / Points), and statuses.
+> Create at least 20 listings with varied tokens, types, and statuses.
+
+### `src/mock-data/transactions.json`
+
+```json
+[
+  {
+    "id": "tx1",
+    "listingId": "1",
+    "token": "ETH",
+    "type": "buy",
+    "amount": 1.0,
+    "price": 2450.00,
+    "total": 2450.00,
+    "status": "completed",
+    "date": "2024-01-16T14:30:00Z"
+  }
+]
+```
 
 ### `src/mock-data/portfolio.json`
 
@@ -270,19 +314,10 @@ npm run dev
   "activeListings": 3,
   "completedTrades": 12,
   "pnl": 1230.00,
-  "activeOrders": [
-    {
-      "id": "ord-1",
-      "token": "EIGEN",
-      "type": "Pre-Market",
-      "amount": "500",
-      "price": "3.25",
-      "total": "1625",
-      "status": "Pending",
-      "date": "2025-02-20"
-    }
-  ],
-  "history": []
+  "assets": [
+    { "token": "ETH", "amount": 2.5, "valueUSD": 6125.00 },
+    { "token": "BTC", "amount": 0.1, "valueUSD": 4350.00 }
+  ]
 }
 ```
 
@@ -293,140 +328,102 @@ npm run dev
 ### Flow 1: Buy a Listing
 
 ```
-/marketplace → [click card] → /listing/:id
-→ [click "Buy Now"] → BuyModal opens
-→ [enter amount] → total auto-updates
-→ [click "Confirm"]
-→ Toast "Order placed!" → modal closes
+Marketplace → [click card] → Listing Detail
+→ [click "Buy Now"] → Confirm Modal appears
+→ [enter amount] → [click Confirm]
+→ Toast "Transaction submitted!" → Modal closes
+→ Listing status changes to "Pending" (local state)
 ```
 
-### Flow 2: Create a Listing
+### Flow 2: Create a New Listing
 
 ```
 Navbar → [click "+ Create"] → /create
-→ [fill form] → [validate on submit]
-→ [click "Create Listing"] → preview modal
+→ [fill form] → [validate]
+→ [click "Create Listing"] → Preview Modal
 → [click "Confirm & Submit"]
 → Toast "Listing created!" → redirect /marketplace
-→ New listing appears at top
+→ New listing appears at top of list
 ```
 
-### Flow 3: Cancel an Order (Portfolio)
+### Flow 3: Manage Listing (Portfolio)
 
 ```
-/portfolio → "Active Orders" tab
-→ [click "Cancel"] on an order
-→ Confirm modal "Cancel this order?"
+/portfolio → "My Listings" tab
+→ [click "Cancel"] on Active listing
+→ Confirm modal "Cancel this listing?"
 → [click "Yes, Cancel"]
-→ Item removed from Active Orders list (local state)
+→ Status changes to "Cancelled" → row updates immediately
 ```
 
 ### Flow 4: Filter Marketplace
 
 ```
-/marketplace → filter sidebar
-→ Select Type = "Pre-Market" → grid filters instantly
-→ Select Token = "ETH" → additional filter applied
-→ [click Reset] → full list restored
+/marketplace → sidebar filter
+→ Select Token = "ETH" → grid self-filters
+→ Select Type = "Sell" → additional filtering
+→ Drag price range → filter by price
+→ [click Reset] → return to full list
 ```
 
 ---
 
-## 5. Design System
+## 5. UI / UX Guidelines
 
-### Colors
+### Colors (from Whales Market Figma)
+
+Use colors from Figma design. If no Figma MCP available, use these temporarily:
 
 | Token | Value |
 |-------|-------|
-| Page background | `#0B0E17` |
-| Card background | `#161B28` |
-| Border | `#252D3D` |
-| Primary accent | `#7C3AED` (purple) |
-| Primary text | `#F1F5F9` |
-| Muted text | `#64748B` |
+| Background | `#0A0B0D` (dark theme) |
+| Card bg | `#13151A` |
+| Border | `#1F2329` |
+| Primary | `#0066FF` |
+| Text primary | `#FFFFFF` |
+| Text secondary | `#8A919E` |
 | Success / Buy | `#22C55E` |
 | Danger / Sell | `#EF4444` |
 
 ### Typography
-- Font: Inter (or match Figma)
-- Heading: font-bold, text-white
-- Body: font-normal, text-slate-400
+- Font: Inter (or font from Figma)
+- Heading: bold, white
+- Body: regular, `text-secondary`
 
-### Responsive Breakpoints
+### Responsive
 
 | Viewport | Layout |
 |----------|--------|
-| Desktop ≥ 1280px | Full layout, 3-column grid, filter sidebar visible |
-| Tablet 768–1279px | 2-column grid, sidebar collapses |
-| Mobile < 768px | 1-column, stack layout, bottom nav |
+| Desktop ≥ 1280px | Full layout, 3-column grid, sidebar visible |
+| Tablet 768–1279px | Sidebar collapses, 2-column grid |
+| Mobile < 768px | 1-column, bottom nav replaces sidebar |
 
-### Interactive States (all required)
+### States Required
 
 | State | Behavior |
 |-------|----------|
-| Hover | Visual feedback on cards, buttons, table rows |
-| Loading | Spinner + `setTimeout` 1–2s mock delay |
-| Empty | `<EmptyState />` when no data matches filter |
+| Hover | Visual feedback on buttons, cards, table rows |
+| Loading | Spinner when "processing" (use setTimeout 1–2s mock) |
+| Empty | `<EmptyState />` when no data |
 | Error | Inline error messages under form fields |
 
 ---
 
-## 6. Scoring Criteria
-
-| Criteria | Points | How to score high |
-|----------|--------|-------------------|
-| **AI Utilization** | 30 | Real workflow: prompt → review → feedback → iterate. Show the process in AI Showcase. |
-| **Pixel Accuracy & FE Logic** | 25 | Layout matches Figma. Filter, modal, toast, search all functional. |
-| **Completeness & Effort** | 20 | All pages built, full mock data, no empty placeholders. |
-| **Responsive & Interaction** | 15 | Mobile works, hover states, smooth transitions. |
-| **Presentation** | 10 | Clear live demo, confident Q&A. |
-| **Total** | **100** | |
-
----
-
-## 7. Timeline
-
-| Day | Goal | Deadline |
-|-----|------|----------|
-| **Day 1** | Setup environment, init project with AI, explore Figma, create GitHub repo | End of day: `npm run dev` works + repo link in Telegram |
-| **Day 2** | Build Home + Marketplace + routing + mock data | End of day: pages navigate + push to GitHub |
-| **Day 3** | FE logic (filter, modal, toast, tabs) + pixel polish + responsive | End of day: functional app + push to GitHub |
-| **Day 4** | Live presentation + AI Showcase + Q&A | App ready before presenting |
-
----
-
-## 8. AI Showcase Guide
-
-Judges want to see **how** you used AI, not just the result.
-
-**Prepare (min 3–5 examples):**
-- Screenshot or link of your first prompt to set up the project
-- How you described the Figma design to AI
-- How you iterated: feedback → AI fixes → better result
-- A moment where AI unblocked a hard problem
-- Your workflow combining Figma MCP + AI tool
-
-> Score higher for asking the right questions and iterating — not copy-pasting a single prompt.
-
----
-
-## 9. Pre-Presentation Checklist
+## 6. Pre-Demo Checklist
 
 - [ ] `npm run dev` runs without errors
 - [ ] All routes navigate correctly
 - [ ] No dead buttons/links — every action has a response
 - [ ] Mock data fully displayed — no empty placeholders
-- [ ] Marketplace filter + sort work
-- [ ] `BuyModal` opens, total auto-calculates, confirm shows toast
-- [ ] Create Listing form validates + submits
-- [ ] Portfolio tabs switch, cancel order removes item
-- [ ] Figma vs browser comparison looks accurate
-- [ ] GitHub repo is public + link sent to Telegram
-- [ ] Code pushed at end of Day 1, 2, 3
-- [ ] AI Showcase: 3–5 screenshots or conversation links ready
+- [ ] Filter/sort on Marketplace works
+- [ ] Confirm modals work (open, close, submit)
+- [ ] Toast notifications appear after actions
+- [ ] Create Listing form has validation
+- [ ] Portfolio tabs switch correctly
 - [ ] Mobile responsive (no layout breaks)
-- [ ] Zero console errors
+- [ ] No console errors in browser
+- [ ] AI Showcase: ≥3 screenshots of good prompts
 
 ---
 
-*Become FE — Cook Series — Build with AI, ship like a pro.*
+*Built with AI — Become FE — Whales Market*
