@@ -1,68 +1,237 @@
+@import url('https://fonts.googleapis.com/css2?family=Funnel+Sans:ital,wght@0,300..800;1,300..800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@import "tailwindcss";
+
+/* ============================================================
+ * DESIGN TOKENS — defined as plain CSS variables in :root
+ * so they are always available regardless of Tailwind usage
+ * ============================================================ */
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+  /* Fonts */
+  --font-sans: 'Funnel Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  /* Neutral */
+  --color-neutral-50:  #F9F9FA;
+  --color-neutral-100: #EFEFF1;
+  --color-neutral-200: #D6D6DB;
+  --color-neutral-300: #B4B4BA;
+  --color-neutral-400: #97979E;
+  --color-neutral-500: #7A7A83;
+  --color-neutral-600: #44444B;
+  --color-neutral-700: #2E2E34;
+  --color-neutral-800: #252527;
+  --color-neutral-900: #1B1B1C;
+  --color-neutral-950: #0A0A0B;
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+  /* Brand Green (Primary) */
+  --color-green-300: #86DDB1;
+  --color-green-400: #5BD197;
+  --color-green-500: #16C284;
+  --color-green-600: #15AF77;
+  --color-green-700: #139B6B;
+
+  /* Teal */
+  --color-teal-400: #2DD4BF;
+  --color-teal-500: #14B8A6;
+  --color-teal-600: #0D9488;
+
+  /* Danger */
+  --color-red-300: #FC8389;
+  --color-red-400: #FD5E67;
+  --color-red-500: #FF3B46;
+  --color-red-600: #F91A27;
+  --color-red-700: #D50B17;
+
+  /* Warning */
+  --color-yellow-400: #FACC15;
+  --color-yellow-500: #EAB308;
+  --color-yellow-600: #CA8A04;
+
+  /* Orange */
+  --color-orange-300: #FDBA74;
+  --color-orange-400: #FB923C;
+  --color-orange-500: #F97316;
+  --color-orange-600: #EA580C;
+  --color-orange-700: #C2410C;
+
+  /* Info / Blue */
+  --color-blue-300: #93C5FD;
+  --color-blue-400: #60A5FA;
+  --color-blue-500: #3B82F6;
+  --color-blue-600: #2563EB;
+  --color-blue-700: #1D4ED8;
+
+  /* Indigo / Violet / Pink / Lime */
+  --color-indigo-400: #818CF8;
+  --color-indigo-500: #6366F1;
+  --color-violet-600: #7C3AED;
+  --color-violet-700: #6929C4;
+  --color-pink-400:   #F472B6;
+  --color-pink-500:   #EC4899;
+  --color-pink-600:   #DB2777;
+  --color-lime-400:   #A3E635;
+  --color-lime-500:   #87CC16;
+  --color-lime-600:   #537C0F;
+
+  /* Semantic aliases */
+  --color-background:       #0A0A0B;
+  --color-surface:          #1B1B1C;
+  --color-surface-raised:   #252527;
+  --color-border:           #252527;
+  --color-border-subtle:    #2E2E34;
+  --color-text-primary:     #F9F9FA;
+  --color-text-secondary:   #97979E;
+  --color-text-tertiary:    #7A7A83;
+  --color-text-disabled:    #44444B;
+  --color-text-inverse:     #0A0A0B;
+  --color-primary:          #16C284;
+  --color-primary-hover:    #15AF77;
+  --color-primary-muted-5:  rgba(22, 194, 132, 0.05);
+  --color-primary-muted-10: rgba(22, 194, 132, 0.10);
+  --color-primary-muted-20: rgba(22, 194, 132, 0.20);
+  --color-danger:           #FF3B46;
+  --color-danger-muted-5:   rgba(255, 59, 70, 0.05);
+  --color-danger-muted-10:  rgba(255, 59, 70, 0.10);
+  --color-danger-muted-20:  rgba(255, 59, 70, 0.20);
+  --color-warning:          #EAB308;
+  --color-warning-muted-10: rgba(234, 179, 8, 0.10);
+  --color-warning-muted-20: rgba(234, 179, 8, 0.20);
+  --color-info:             #3B82F6;
+  --color-info-muted-5:     rgba(59, 130, 246, 0.05);
+  --color-info-muted-10:    rgba(59, 130, 246, 0.10);
+  --color-info-muted-20:    rgba(59, 130, 246, 0.20);
+
+  /* Spacing */
+  --spacing-0:  0px;
+  --spacing-2:  2px;
+  --spacing-4:  4px;
+  --spacing-6:  6px;
+  --spacing-8:  8px;
+  --spacing-10: 10px;
+  --spacing-12: 12px;
+  --spacing-16: 16px;
+  --spacing-20: 20px;
+  --spacing-24: 24px;
+  --spacing-32: 32px;
+  --spacing-40: 40px;
+  --spacing-48: 48px;
+  --spacing-56: 56px;
+  --spacing-64: 64px;
+
+  /* Border Radius */
+  --radius-none: 0px;
+  --radius-xs:   2px;
+  --radius-sm:   4px;
+  --radius-md:   6px;
+  --radius-lg:   8px;
+  --radius-xl:   10px;
+  --radius-2xl:  12px;
+  --radius-3xl:  16px;
+  --radius-full: 9999px;
+}
+
+/* ============================================================
+ * TAILWIND v4 — map design tokens to Tailwind utilities
+ * @theme inline: use existing CSS vars instead of creating new ones
+ * ============================================================ */
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --color-neutral-50:  var(--color-neutral-50);
+  --color-neutral-100: var(--color-neutral-100);
+  --color-neutral-200: var(--color-neutral-200);
+  --color-neutral-300: var(--color-neutral-300);
+  --color-neutral-400: var(--color-neutral-400);
+  --color-neutral-500: var(--color-neutral-500);
+  --color-neutral-600: var(--color-neutral-600);
+  --color-neutral-700: var(--color-neutral-700);
+  --color-neutral-800: var(--color-neutral-800);
+  --color-neutral-900: var(--color-neutral-900);
+  --color-neutral-950: var(--color-neutral-950);
+
+  --color-green-300: var(--color-green-300);
+  --color-green-400: var(--color-green-400);
+  --color-green-500: var(--color-green-500);
+  --color-green-600: var(--color-green-600);
+  --color-green-700: var(--color-green-700);
+
+  --color-teal-400: var(--color-teal-400);
+  --color-teal-500: var(--color-teal-500);
+  --color-teal-600: var(--color-teal-600);
+
+  --color-red-300: var(--color-red-300);
+  --color-red-400: var(--color-red-400);
+  --color-red-500: var(--color-red-500);
+  --color-red-600: var(--color-red-600);
+  --color-red-700: var(--color-red-700);
+
+  --color-yellow-400: var(--color-yellow-400);
+  --color-yellow-500: var(--color-yellow-500);
+  --color-yellow-600: var(--color-yellow-600);
+
+  --color-orange-300: var(--color-orange-300);
+  --color-orange-400: var(--color-orange-400);
+  --color-orange-500: var(--color-orange-500);
+  --color-orange-600: var(--color-orange-600);
+  --color-orange-700: var(--color-orange-700);
+
+  --color-blue-300: var(--color-blue-300);
+  --color-blue-400: var(--color-blue-400);
+  --color-blue-500: var(--color-blue-500);
+  --color-blue-600: var(--color-blue-600);
+  --color-blue-700: var(--color-blue-700);
+
+  --color-indigo-400: var(--color-indigo-400);
+  --color-indigo-500: var(--color-indigo-500);
+  --color-violet-600: var(--color-violet-600);
+  --color-violet-700: var(--color-violet-700);
+  --color-pink-400: var(--color-pink-400);
+  --color-pink-500: var(--color-pink-500);
+  --color-pink-600: var(--color-pink-600);
+  --color-lime-400: var(--color-lime-400);
+  --color-lime-500: var(--color-lime-500);
+  --color-lime-600: var(--color-lime-600);
+
+  --color-background:       var(--color-background);
+  --color-surface:          var(--color-surface);
+  --color-surface-raised:   var(--color-surface-raised);
+  --color-border:           var(--color-border);
+  --color-text-primary:     var(--color-text-primary);
+  --color-text-secondary:   var(--color-text-secondary);
+  --color-primary:          var(--color-primary);
+  --color-danger:           var(--color-danger);
+  --color-warning:          var(--color-warning);
+  --color-info:             var(--color-info);
+
+  --radius-none: var(--radius-none);
+  --radius-xs:   var(--radius-xs);
+  --radius-sm:   var(--radius-sm);
+  --radius-md:   var(--radius-md);
+  --radius-lg:   var(--radius-lg);
+  --radius-xl:   var(--radius-xl);
+  --radius-2xl:  var(--radius-2xl);
+  --radius-3xl:  var(--radius-3xl);
+  --radius-full: var(--radius-full);
+}
+
+/* ============================================================
+ * BASE STYLES
+ * ============================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-sans);
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
   min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
 }
