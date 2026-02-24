@@ -13,6 +13,7 @@ export interface Trade {
   collateralLogo: string;
   time: string;
   txId: string;
+  badge?: { initials: string; color: string };
 }
 
 export const recentTrades: Trade[] = [
@@ -51,6 +52,7 @@ export const recentTrades: Trade[] = [
     collateralLogo: USDT,
     time: '1m ago',
     txId: '0x7a8b9c',
+    badge: { initials: 'RS', color: '#EAB308' },
   },
   {
     id: '4',
@@ -63,6 +65,7 @@ export const recentTrades: Trade[] = [
     collateralLogo: SOL,
     time: '1m ago',
     txId: '0xd0e1f2',
+    badge: { initials: 'RS', color: '#EAB308' },
   },
   {
     id: '5',

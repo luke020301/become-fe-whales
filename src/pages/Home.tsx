@@ -274,7 +274,7 @@ function MarketTable({
   const [search, setSearch] = useState('');
   const [networkFilter, setNetworkFilter] = useState('all');
   // Multi-column sort: each column can independently be asc/desc/off
-  const [sortStates, setSortStates] = useState<SortStates>({ volume24h: 'desc' });
+  const [sortStates, setSortStates] = useState<SortStates>({});
   const [activeTab, setActiveTab] = useState<'live' | 'ended'>('live');
 
   const handleTabChange = (tab: 'live' | 'ended') => {
@@ -604,11 +604,29 @@ function RecentTradesTable() {
             </div>
 
             {/* Side */}
-            <div style={{ width: 128, padding: '16px 0', flexShrink: 0 }}>
+            <div style={{ width: 128, padding: '16px 0', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span className="text-sm font-medium"
                 style={{ color: t.side === 'buy' ? '#5BD197' : '#FD5E67' }}>
                 {t.side === 'buy' ? 'Buy' : 'Sell'}
               </span>
+              {t.side === 'buy' && t.badge && (
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '4px 8px',
+                  borderRadius: 9999,
+                  background: t.badge.color,
+                  fontSize: 10,
+                  fontWeight: 500,
+                  lineHeight: '1.2em',
+                  textTransform: 'uppercase',
+                  color: '#0A0A0B',
+                  letterSpacing: '0.02em',
+                }}>
+                  {t.badge.initials}
+                </span>
+              )}
             </div>
 
             {/* Pair — token icon + "SYMBOL/QUOTE" */}
