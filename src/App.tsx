@@ -4,7 +4,6 @@ import Header from './components/Header';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import MarketDetail from './pages/MarketDetail';
-
 export default function App() {
   return (
     <BrowserRouter>
@@ -14,7 +13,6 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/market/:id" element={<MarketDetail />} />
-          <Route path="/points" element={<Dashboard />} />
         </Routes>
       </div>
     </BrowserRouter>
