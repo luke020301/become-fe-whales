@@ -300,6 +300,12 @@ export default function Header() {
   const [walletOpen, setWalletOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [hoveredUserItem, setHoveredUserItem] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ label: string; description: string } | null>(null);
+
+  const showToast = (label: string, description: string) => {
+    setToast({ label, description });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   const [networkOpen, setNetworkOpen] = useState(false);
   const [selectedNetwork, setSelectedNetwork] = useState('solana');
@@ -662,7 +668,7 @@ export default function Header() {
                       {/* Group 3: disconnect */}
                       <div style={{ padding: 8 }}>
                         <div
-                          onClick={() => { setConnected(false); setUserDropdownOpen(false); }}
+                          onClick={() => { setConnected(false); setUserDropdownOpen(false); showToast('Wallet disconnected', "You've successfully disconnected your wallet"); }}
                           onMouseEnter={e => ((e.currentTarget as HTMLDivElement).style.background = 'rgba(253,94,103,0.08)')}
                           onMouseLeave={e => ((e.currentTarget as HTMLDivElement).style.background = 'transparent')}
                           style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, cursor: 'pointer', background: 'transparent' }}
@@ -685,11 +691,11 @@ export default function Header() {
                 onClick={() => setWalletOpen(true)}
                 style={{
                   padding: '8px 16px', borderRadius: 8, cursor: 'pointer',
-                  background: '#5BD197', color: '#0A0A0B',
+                  background: '#19FB9B', color: '#0A0A0B',
                   border: 'none', fontSize: 14, fontWeight: 500, lineHeight: '20px',
                 }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#4CAF85')}
-                onMouseLeave={e => (e.currentTarget.style.background = '#5BD197')}
+                onMouseEnter={e => (e.currentTarget.style.background = '#10d882')}
+                onMouseLeave={e => (e.currentTarget.style.background = '#19FB9B')}
               >
                 Connect Wallet
               </button>
@@ -703,8 +709,53 @@ export default function Header() {
       {walletOpen && (
         <ConnectWalletModal
           onClose={() => setWalletOpen(false)}
-          onConnect={() => setConnected(true)}
+          onConnect={() => { setConnected(true); showToast('Wallet connected', "You've successfully connected your wallet"); }}
         />
+      )}
+
+      {/* Toast */}
+      {toast && createPortal(
+        <div style={{
+          position: 'fixed', bottom: 24, left: 24, zIndex: 9999,
+          background: '#1B1B1C', borderRadius: 10, padding: '12px 16px',
+          display: 'flex', alignItems: 'flex-start', gap: 12,
+          minWidth: 320, maxWidth: 400,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          animation: 'fadeInUp 0.2s ease',
+        }}>
+          {/* Success icon */}
+          <div style={{ flexShrink: 0, marginTop: 2 }}>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="10" fill="#16C284" fillOpacity="0.2" />
+              <path d="M6 10.5l3 3 5-5" stroke="#16C284" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          {/* Content */}
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 500, color: '#F9F9FA', lineHeight: '20px' }}>
+              {toast.label}
+            </div>
+            <div style={{ fontSize: 12, color: '#7A7A83', lineHeight: '16px', marginTop: 2 }}>
+              {toast.description}
+            </div>
+          </div>
+          {/* Close */}
+          <button
+            onClick={() => setToast(null)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#7A7A83', padding: 0, flexShrink: 0 }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
+            </svg>
+          </button>
+          {/* Timer bar */}
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0, height: 3,
+            background: '#16C284', borderRadius: '0 0 10px 10px',
+            width: '100%', animation: 'shrinkWidth 4s linear forwards',
+          }} />
+        </div>,
+        document.body
       )}
     </header>
   );
