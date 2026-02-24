@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
 
 const ChevronDown = () => (
@@ -7,10 +8,126 @@ const ChevronDown = () => (
   </svg>
 );
 
+/* ─────────── Points Market Modal ─────────── */
+function PointsMarketModal({ onClose }: { onClose: () => void }) {
+  // Lock body scroll while modal is open
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  return createPortal(
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 100,
+          background: 'rgba(0, 0, 0, 0.8)',
+          backdropFilter: 'blur(4px)',
+        }}
+      />
+
+      {/* Modal card — centered */}
+      <div
+        style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 101,
+          width: 576,
+          background: '#1B1B1C',
+          borderRadius: 24,
+          boxShadow: '0px 0px 32px 0px rgba(0, 0, 0, 0.2)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Header banner image — 576×355 */}
+        <div style={{ position: 'relative', width: 576, height: 355, flexShrink: 0 }}>
+          <img
+            src="/images/modal-points-banner.png"
+            alt=""
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
+
+          {/* Close button — absolute top-right, bg rgba(0,0,0,0.5), radius 9999 */}
+          <button
+            onClick={onClose}
+            style={{
+              position: 'absolute',
+              top: 14,
+              right: 16,
+              width: 32,
+              height: 32,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(0, 0, 0, 0.5)',
+              borderRadius: 9999,
+              border: 'none',
+              cursor: 'pointer',
+              color: '#F9F9FA',
+            }}
+          >
+            {/* close_fill icon 16×16 */}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Modal body — padding: 32px 48px, gap: 24px */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24, padding: '32px 48px' }}>
+          {/* Content — padding: 0 32px 16px, gap: 16px */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '0 32px 16px' }}>
+            <p style={{
+              margin: 0, fontSize: 28, fontWeight: 500, lineHeight: '1.286em',
+              color: '#F9F9FA', textAlign: 'center',
+            }}>
+              Points Market returns soon!
+            </p>
+            <p style={{
+              margin: 0, fontSize: 16, fontWeight: 400, lineHeight: '1.5em',
+              color: '#B4B4BA', textAlign: 'center',
+            }}>
+              Points Market is evolving with a new version —{' '}
+              stay tuned, folks!
+            </p>
+          </div>
+
+          {/* Buttons — column, center, gap: 8px */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            {/* "Follow us on [X]" — bg #F9F9FA, color #0A0A0B, padding: 10px 32px, radius: 10 */}
+            <button style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              padding: '10px 32px', borderRadius: 10,
+              background: '#F9F9FA', color: '#0A0A0B',
+              border: 'none', cursor: 'pointer',
+              fontSize: 16, fontWeight: 500, lineHeight: '1.5em',
+            }}>
+              Follow us on
+              {/* social_x_line icon 20×20 */}
+              <span style={{ display: 'flex', alignItems: 'center', padding: 4 }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.741l7.73-8.835L1.254 2.25H8.08l4.259 5.631zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                </svg>
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </>,
+    document.body
+  );
+}
+
 export default function Header() {
   const location = useLocation();
   const [earnOpen, setEarnOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [pointsModalOpen, setPointsModalOpen] = useState(false);
 
   return (
     <header
@@ -51,24 +168,25 @@ export default function Header() {
                 Pre-market
               </Link>
 
-              {/* Points Market */}
-              <Link
-                to="/points"
+              {/* Points Market — opens modal, no route navigation */}
+              <button
+                onClick={() => { setPointsModalOpen(true); setEarnOpen(false); setAboutOpen(false); }}
                 className="flex items-center rounded-lg transition-colors"
                 style={{
                   gap: 6,
                   padding: '8px 16px',
-                  color: location.pathname === '/points' ? '#F9F9FA' : '#7A7A83',
+                  color: '#7A7A83',
                   fontSize: 14,
                   fontWeight: 500,
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
                 }}
                 onMouseEnter={(e) => (e.currentTarget.style.color = '#F9F9FA')}
-                onMouseLeave={(e) => {
-                  if (location.pathname !== '/points') e.currentTarget.style.color = '#7A7A83';
-                }}
+                onMouseLeave={(e) => (e.currentTarget.style.color = '#7A7A83')}
               >
                 Points Market
-              </Link>
+              </button>
 
               {/* Dashboard */}
               <Link
@@ -275,6 +393,11 @@ export default function Header() {
           className="fixed inset-0 z-40"
           onClick={() => { setEarnOpen(false); setAboutOpen(false); }}
         />
+      )}
+
+      {/* Points Market modal */}
+      {pointsModalOpen && (
+        <PointsMarketModal onClose={() => setPointsModalOpen(false)} />
       )}
     </header>
   );
