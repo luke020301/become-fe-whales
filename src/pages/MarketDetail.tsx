@@ -1,57 +1,62 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { markets } from '../mock-data/markets';
+import { recentTrades } from '../mock-data/trades';
+import mascotWhale from '../assets/mascot-whale-frame.png';
+import emptyOrdersIllustration from '../assets/empty-orders-illustration.png';
 
 /* ─── helpers ─── */
 const fmt = (n: number, dec = 2) =>
   n.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+const fmtK = (n: number) => n >= 1_000_000 ? `${parseFloat((n / 1_000_000).toFixed(2))}M` : n >= 1000 ? `${parseFloat((n / 1000).toFixed(2))}K` : `${n}`;
 
 /* ─── mock order book data ─── */
+const CREATURES = [
+  '/images/creature-whale.svg',
+  '/images/creature-shrimp.svg',
+  '/images/creature-shark.svg',
+  '/images/creature-dolphin.svg',
+  '/images/creature-fish.svg',
+];
 const SELL_ORDERS = [
-  { id: 's1', price: 0.0058, amount: 12000,  collateral: 69.6  },
-  { id: 's2', price: 0.0055, amount: 8500,   collateral: 46.75 },
-  { id: 's3', price: 0.0053, amount: 5200,   collateral: 27.56 },
-  { id: 's4', price: 0.0051, amount: 3600,   collateral: 18.36 },
-  { id: 's5', price: 0.0050, amount: 9800,   collateral: 49.0  },
+  { id: 's1', price: 0.0058, amount: 12000,  collateral: 69.6,  creatureIcon: CREATURES[0] },
+  { id: 's2', price: 0.0055, amount: 8500,   collateral: 46.75, creatureIcon: CREATURES[1] },
+  { id: 's3', price: 0.0053, amount: 5200,   collateral: 27.56, creatureIcon: CREATURES[2] },
+  { id: 's4', price: 0.0051, amount: 3600,   collateral: 18.36, creatureIcon: CREATURES[3] },
+  { id: 's5', price: 0.0050, amount: 9800,   collateral: 49.0,  creatureIcon: CREATURES[4] },
 ];
 const BUY_ORDERS = [
-  { id: 'b1', price: 0.0048, amount: 7500,   collateral: 36.0  },
-  { id: 'b2', price: 0.0046, amount: 11200,  collateral: 51.52 },
-  { id: 'b3', price: 0.0044, amount: 6300,   collateral: 27.72 },
-  { id: 'b4', price: 0.0042, amount: 4800,   collateral: 20.16 },
-  { id: 'b5', price: 0.0040, amount: 15600,  collateral: 62.4  },
+  { id: 'b1', price: 0.0048, amount: 7500,   collateral: 36.0,  creatureIcon: CREATURES[0] },
+  { id: 'b2', price: 0.0046, amount: 11200,  collateral: 51.52, creatureIcon: CREATURES[1] },
+  { id: 'b3', price: 0.0044, amount: 6300,   collateral: 27.72, creatureIcon: CREATURES[2] },
+  { id: 'b4', price: 0.0042, amount: 4800,   collateral: 20.16, creatureIcon: CREATURES[3] },
+  { id: 'b5', price: 0.0040, amount: 15600,  collateral: 62.4,  creatureIcon: CREATURES[4] },
 ];
 
-const MY_FILLED_ORDERS = [
-  { id: '1', side: 'buy',  price: 0.0045, amount: 10000, collateral: 0.5,  collateralSymbol: 'ETH',  time: '2h ago'  },
-  { id: '2', side: 'buy',  price: 0.0040, amount: 25000, collateral: 1.0,  collateralSymbol: 'ETH',  time: '1d ago'  },
-  { id: '3', side: 'sell', price: 0.0060, amount: 5000,  collateral: 0.3,  collateralSymbol: 'ETH',  time: '2d ago'  },
-];
-const MY_OPEN_ORDERS = [
-  { id: '4', side: 'buy',  price: 0.0035, amount: 20000, collateral: 0.7,  collateralSymbol: 'ETH',  time: '5m ago'  },
-  { id: '5', side: 'sell', price: 0.0070, amount: 8000,  collateral: 0.56, collateralSymbol: 'ETH',  time: '30m ago' },
-  { id: '6', side: 'buy',  price: 0.0030, amount: 50000, collateral: 1.5,  collateralSymbol: 'ETH',  time: '1h ago'  },
-];
+type MyOrder = { id: string; side: string; hasPosition: boolean; price: number; amount: number; collateral: number; collateralSymbol: string; time: string };
+const MY_FILLED_ORDERS: MyOrder[] = [];
+const MY_OPEN_ORDERS: MyOrder[] = [];
+
 
 /* ─── chart data ─── */
 type ChartPoint = { price: number; volume: number; fullDate: string; shortDate: string };
 
 const CHART_DATA: ChartPoint[] = (() => {
   const prices = [
-    0.0012,0.0015,0.0013,0.0018,0.0016,0.0020,0.0017,0.0022,0.0019,0.0025,
-    0.0022,0.0028,0.0024,0.0030,0.0027,0.0033,0.0029,0.0036,0.0032,0.0038,
-    0.0035,0.0042,0.0038,0.0045,0.0041,0.0048,0.0044,0.0051,0.0046,0.0053,
-    0.0048,0.0050,0.0046,0.0042,0.0039,0.0043,0.0040,0.0044,0.0041,0.0047,
-    0.0043,0.0049,0.0045,0.0048,0.0044,0.0046,0.0042,0.0040,0.0043,0.0047,
-    0.0044,0.0050,0.0046,0.0048,0.0043,0.0045,0.0041,0.0044,0.0042,0.0045,
+    0.0046,0.0046,0.0046,0.0044,0.0044,0.0044,0.0044,0.0042,0.0042,0.0042,
+    0.0042,0.0042,0.0030,0.0030,0.0031,0.0031,0.0031,0.0031,0.0029,0.0029,
+    0.0029,0.0029,0.0049,0.0038,0.0038,0.0038,0.0036,0.0036,0.0036,0.0034,
+    0.0034,0.0034,0.0034,0.0032,0.0032,0.0032,0.0030,0.0030,0.0030,0.0030,
+    0.0028,0.0028,0.0028,0.0028,0.0026,0.0026,0.0026,0.0024,0.0024,0.0024,
+    0.0024,0.0016,0.0016,0.0018,0.0017,0.0017,0.0017,0.0015,0.0015,0.0015,
   ];
   const volumes = [
-    12000,8500,15000,9800,22000,6300,18000,11200,7500,14000,
-    9200,19000,8800,23000,7200,16000,10500,21000,8000,17000,
-    11000,20000,9500,24000,7800,15500,12000,18500,9000,22500,
-    6500,17500,10000,23500,7500,16500,11500,21500,8500,19500,
-    6000,14500,9800,25000,7000,18000,10800,22000,8200,16000,
-    11200,20000,9200,24000,7200,15000,10000,21000,8000,19000,
+    85000,42000,310000,58000,195000,38000,260000,72000,180000,95000,
+    140000,390000,55000,220000,78000,310000,65000,175000,420000,48000,
+    295000,88000,510000,165000,72000,240000,55000,195000,330000,68000,
+    155000,42000,280000,110000,62000,200000,345000,52000,175000,260000,
+    82000,190000,310000,48000,225000,95000,170000,350000,65000,130000,
+    240000,430000,58000,295000,82000,165000,410000,52000,200000,145000,
   ];
   const start = new Date('2025-03-01T00:00:00Z');
   return prices.map((price, i) => {
@@ -72,29 +77,76 @@ const CHART_DATA: ChartPoint[] = (() => {
   });
 })();
 
+/* Straight line path */
+function makeSmoothPath(pts: { x: number; y: number }[]): string {
+  if (pts.length < 2) return '';
+  let d = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
+  for (let i = 1; i < pts.length; i++) {
+    d += ` L${pts[i].x.toFixed(1)},${pts[i].y.toFixed(1)}`;
+  }
+  return d;
+}
+
 /* ─── interactive price chart (Figma: chart ver=02-hover) ─── */
 function PriceChart({
   ticker,
-  onHoverTime,
+  timeRange,
+  setTimeRange,
+  chartType,
+  setChartType,
 }: {
   ticker: string;
-  onHoverTime?: (t: string | null) => void;
+  timeRange: string;
+  setTimeRange: (v: string) => void;
+  chartType: string;
+  setChartType: (v: string) => void;
 }) {
   const [hover, setHover] = useState<{ dataIdx: number } | null>(null);
+  const [now, setNow] = useState(() => new Date());
+  const [isDragging, setIsDragging] = useState(false);
   const graphRef = useRef<HTMLDivElement>(null);
-  const data = CHART_DATA;
+  const dragRef = useRef<{ startX: number; startOffset: number } | null>(null);
+
+  /* window size per time range */
+  const WINDOW_MAP: Record<string, number> = { '1d': 10, '7d': 20, '30d': CHART_DATA.length };
+  const windowSize = WINDOW_MAP[timeRange] ?? CHART_DATA.length;
+  const maxOffset = Math.max(0, CHART_DATA.length - windowSize);
+
+  const [viewOffset, setViewOffset] = useState(() => maxOffset);
+
+  useEffect(() => {
+    setViewOffset(Math.max(0, CHART_DATA.length - windowSize));
+  }, [timeRange, windowSize]);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    function onGlobalMouseUp() {
+      if (dragRef.current) { dragRef.current = null; setIsDragging(false); }
+    }
+    window.addEventListener('mouseup', onGlobalMouseUp);
+    return () => window.removeEventListener('mouseup', onGlobalMouseUp);
+  }, []);
+
+  const clampedOffset = Math.min(Math.max(0, viewOffset), maxOffset);
+  const data = CHART_DATA.slice(clampedOffset, clampedOffset + windowSize);
 
   /* SVG viewport */
   const W = 820; const PH = 240; const VH = 100;
 
-  /* price scale */
-  const prices = data.map(d => d.price);
-  const minP = Math.min(...prices) * 0.95;
-  const maxP = Math.max(...prices) * 1.05;
+  /* Fixed Y scale — Figma right axis: 0.0050, 0.0040, 0.0030, 0.0020, 0.0010
+     YPAD=38 aligns gridlines with space-between label centers (32px padding + 6px half-item-height) */
+  const minP = 0.0010;
+  const maxP = 0.0050;
+  const YPAD = 38;
   const toX = (i: number) => (i / (data.length - 1)) * W;
-  const toY = (v: number) => PH - ((v - minP) / (maxP - minP)) * PH;
+  const toY = (v: number) => (PH - YPAD) - ((v - minP) / (maxP - minP)) * (PH - YPAD * 2);
 
-  const linePath = data.map((d, i) => `${i === 0 ? 'M' : 'L'}${toX(i).toFixed(1)},${toY(d.price).toFixed(1)}`).join(' ');
+  const pts = data.map((d, i) => ({ x: toX(i), y: toY(d.price) }));
+  const linePath = makeSmoothPath(pts);
   const areaPath = `${linePath} L${W},${PH} L0,${PH} Z`;
 
   const lastIdx  = data.length - 1;
@@ -102,11 +154,10 @@ function PriceChart({
   const lastY     = toY(lastPrice);
   const lastChange = (lastPrice - data[0].price) / data[0].price * 100;
 
-  /* 5 evenly-spaced Y-axis ticks */
-  const yTicks = Array.from({ length: 5 }, (_, i) => {
-    const v = maxP - (maxP - minP) * (i / 4);
-    return { label: v.toFixed(4), ySvg: toY(v), yPct: (toY(v) / PH) * 100 };
-  });
+  /* Fixed Y-axis ticks (Figma: layout_0F2LFP — 0.0050 → 0.0010 in 0.001 steps) */
+  const yTicks = [0.0050, 0.0040, 0.0030, 0.0020, 0.0010].map(v => ({
+    label: v.toFixed(4), ySvg: toY(v),
+  }));
 
   /* volume scale */
   const maxVol = Math.max(...data.map(d => d.volume));
@@ -124,43 +175,91 @@ function PriceChart({
   const hoverXPct  = hover ? (hover.dataIdx / (data.length - 1)) * 100 : null;
   const hoverYPct  = hoverSvgY !== null ? (hoverSvgY / PH) * 100 : null;
 
-  /* last-price pill top% on right axis (accounting for 32px padding) */
-  const lastPillTop = `${((maxP - lastPrice) / (maxP - minP) * (PH - 64) + 32) / PH * 100}%`;
+  /* last-price + hover pill top% — use same toY() as SVG so pills align with chart line */
+  const lastPillTop = `${(toY(lastPrice) / PH) * 100}%`;
+  const hoverPillTop = hoverPt ? `${(toY(hoverPt.price) / PH) * 100}%` : null;
 
   const TOOLTIP_W = 192;
 
-  function onMouseMove(e: React.MouseEvent) {
-    const g = graphRef.current;
-    if (!g) return;
-    const rect = g.getBoundingClientRect();
+  function onMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+    dragRef.current = { startX: e.clientX, startOffset: clampedOffset };
+    setIsDragging(true);
+    setHover(null);
+  }
+  function onMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+    if (dragRef.current) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const pxPerPoint = rect.width / windowSize;
+      const deltaIdx = Math.round(-(e.clientX - dragRef.current.startX) / pxPerPoint);
+      setViewOffset(Math.min(Math.max(0, dragRef.current.startOffset + deltaIdx), maxOffset));
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
     const relX = e.clientX - rect.left;
-    if (relX < 0 || relX > rect.width) { onMouseLeave(); return; }
     const idx = Math.min(Math.max(Math.round((relX / rect.width) * (data.length - 1)), 0), data.length - 1);
     setHover({ dataIdx: idx });
-    onHoverTime?.(data[idx].fullDate);
   }
-  function onMouseLeave() { setHover(null); onHoverTime?.(null); }
+  function onMouseLeave() { setHover(null); }
 
   return (
-    <div onMouseMove={onMouseMove} onMouseLeave={onMouseLeave} style={{ userSelect: 'none' }}>
+    <div onMouseLeave={onMouseLeave} style={{ userSelect: 'none' }}>
+
+      {/* ── Time bar (1d/7d/30d, Price/FDV, Time) ── */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '8px 16px 8px 8px', borderBottom: '1px solid #1B1B1C',
+      }}>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {['1d', '7d', '30d'].map(r => (
+            <button key={r} onClick={() => setTimeRange(r)} style={{
+              padding: '2px 8px', borderRadius: 4, border: 'none', cursor: 'pointer',
+              background: timeRange === r ? '#1B1B1C' : 'transparent',
+              color: timeRange === r ? '#F9F9FA' : '#7A7A83',
+              fontSize: 12, fontWeight: 500,
+            }}>{r}</button>
+          ))}
+        </div>
+        <div style={{ width: 1, alignSelf: 'stretch', background: '#1B1B1C', flexShrink: 0 }} />
+        <div style={{ display: 'flex', gap: 4, flex: 1 }}>
+          {['Price', 'FDV'].map(t => (
+            <button key={t} onClick={() => setChartType(t)} style={{
+              padding: '2px 8px', borderRadius: 4, border: 'none', cursor: 'pointer',
+              background: chartType === t ? '#1B1B1C' : 'transparent',
+              color: chartType === t ? '#F9F9FA' : '#7A7A83',
+              fontSize: 12, fontWeight: 500,
+            }}>{t}</button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          <span style={{ fontSize: 12, color: '#7A7A83' }}>Time</span>
+          <span style={{ fontSize: 12, color: '#F9F9FA' }}>{hoverPt ? hoverPt.fullDate : (() => {
+            const dd = String(now.getDate()).padStart(2, '0');
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const yyyy = now.getFullYear();
+            const h = now.getHours();
+            const min = String(now.getMinutes()).padStart(2, '0');
+            const sec = String(now.getSeconds()).padStart(2, '0');
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            const h12 = h % 12 || 12;
+            return `${dd}/${mm}/${yyyy}, ${h12}:${min}:${sec} ${ampm}`;
+          })()}</span>
+        </div>
+      </div>
 
       {/* ── Price chart-info row ── */}
       <div style={{ display: 'flex', borderBottom: '1px solid #1B1B1C' }}>
 
-        {/* Left Y-axis: "Price" + 5 ticks */}
+        {/* Left Y-axis: "Price" label only (Figma: layout_914BGF — narrow, centered label) */}
         <div style={{
-          display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-          alignItems: 'center', padding: 16, width: 60, flexShrink: 0,
-          borderRight: '1px solid #1B1B1C', height: PH,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: 40, flexShrink: 0, borderRight: '1px solid #1B1B1C', height: PH,
         }}>
-          <span style={{ fontSize: 10, color: '#7A7A83' }}>Price</span>
-          {yTicks.map((t, i) => (
-            <span key={i} style={{ fontSize: 10, color: '#7A7A83' }}>{t.label}</span>
-          ))}
+          <span style={{ fontSize: 10, color: '#7A7A83', writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Price</span>
         </div>
 
         {/* Chart graph — fills remaining width */}
-        <div ref={graphRef} style={{ flex: 1, position: 'relative', height: PH }}>
+        <div ref={graphRef} onMouseDown={onMouseDown} onMouseMove={onMouseMove}
+          style={{ flex: 1, position: 'relative', height: PH, cursor: isDragging ? 'grabbing' : (maxOffset > 0 ? 'grab' : 'default') }}>
           <svg viewBox={`0 0 ${W} ${PH}`} preserveAspectRatio="none"
             style={{ width: '100%', height: '100%', display: 'block' }}>
             <defs>
@@ -195,130 +294,163 @@ function PriceChart({
             )}
           </svg>
 
-          {/* Last Price overlay — top-left (Figma: layout_4OI7A6 x:8 y:8) */}
+          {/* Last Price overlay — top-left */}
           <div style={{
             position: 'absolute', top: 8, left: 8,
-            display: 'flex', gap: 4, pointerEvents: 'none',
+            display: 'flex', flexDirection: 'column', gap: 4, pointerEvents: 'none',
           }}>
-            <span style={{ fontSize: 12, color: '#7A7A83' }}>Last Price</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ fontSize: 12, color: '#F9F9FA' }}>${lastPrice.toFixed(4)}</span>
-              <span style={{ fontSize: 12, color: lastChange >= 0 ? '#5BD197' : '#FD5E67' }}>
-                {lastChange >= 0 ? '+' : ''}{lastChange.toFixed(2)}%
-              </span>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <span style={{ fontSize: 12, color: '#7A7A83' }}>Last Price</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: 12, color: '#F9F9FA' }}>${lastPrice.toFixed(4)}</span>
+                <span style={{ fontSize: 12, color: lastChange >= 0 ? '#5BD197' : '#FD5E67' }}>
+                  {lastChange >= 0 ? '+' : ''}{lastChange.toFixed(2)}%
+                </span>
+              </div>
             </div>
-          </div>
-
-          {/* WhalesMarket watermark — bottom-right */}
-          <div style={{
-            position: 'absolute', bottom: 8, right: 8,
-            opacity: 0.35, pointerEvents: 'none',
-            display: 'flex', alignItems: 'center', gap: 3,
-          }}>
-            <span style={{ fontSize: 9, fontWeight: 600, color: '#F9F9FA', letterSpacing: '0.05em' }}>
-              WHALES MARKET
-            </span>
           </div>
 
           {/* Tooltip (Figma: layout_X32J1Z + layout_5CIOC5 — column, center, bg #252527, br:8, w:192) */}
-          {hover && hoverPt && hoverXPct !== null && hoverYPct !== null && (
-            <div style={{
-              position: 'absolute',
-              left: `clamp(0px, calc(${hoverXPct}% - ${TOOLTIP_W / 2}px), calc(100% - ${TOOLTIP_W}px))`,
-              top: `clamp(8px, calc(${hoverYPct}% - 110px), calc(${hoverYPct}% - 8px))`,
-              width: TOOLTIP_W,
-              background: '#252527', borderRadius: 8,
-              padding: '8px 12px', pointerEvents: 'none',
-              boxShadow: '0 0 8px rgba(0,0,0,0.1)', zIndex: 50,
-            }}>
-              {/* datetime — layout_JLOA65: row, border-bottom */}
-              <div style={{ paddingBottom: 8, borderBottom: '1px solid #2E2E34' }}>
-                <span style={{ fontSize: 12, color: '#7A7A83' }}>{hoverPt.fullDate}</span>
-              </div>
-              {/* Price row — layout_6NKOA6: row, fill */}
-              <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
-                <span style={{ fontSize: 12, color: '#7A7A83', flex: 1 }}>Price:</span>
-                <span style={{ fontSize: 12, color: '#F9F9FA' }}>${hoverPt.price.toFixed(4)}</span>
-              </div>
-              {/* Vol row */}
-              <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-                <span style={{ fontSize: 12, color: '#7A7A83', flex: 1 }}>Vol:</span>
-                <span style={{ fontSize: 12, color: '#F9F9FA' }}>${fmt(hoverPt.volume)}</span>
-              </div>
-              {/* Arrow */}
-              <svg width="16" height="8" viewBox="0 0 16 8" fill="none"
-                style={{ position: 'absolute', bottom: -8, left: '50%', transform: 'translateX(-50%)' }}>
-                <path d="M0 0 L8 8 L16 0 Z" fill="#252527" />
-              </svg>
-            </div>
+          {hover && hoverPt && hoverXPct !== null && hoverSvgY !== null && (
+            (() => {
+              const TOOLTIP_H = 100;
+              const showBelow = hoverSvgY < TOOLTIP_H + 16;
+              const tooltipTop = showBelow ? hoverSvgY + 12 : hoverSvgY - TOOLTIP_H - 8;
+              return (
+                <div style={{
+                  position: 'absolute',
+                  left: `clamp(0px, calc(${hoverXPct}% - ${TOOLTIP_W / 2}px), calc(100% - ${TOOLTIP_W}px))`,
+                  top: tooltipTop,
+                  width: TOOLTIP_W,
+                  background: '#252527', borderRadius: 8,
+                  padding: '8px 12px', pointerEvents: 'none',
+                  boxShadow: '0 0 8px rgba(0,0,0,0.1)', zIndex: 50,
+                }}>
+                  {/* datetime — layout_JLOA65: row, border-bottom */}
+                  <div style={{ paddingBottom: 8, borderBottom: '1px solid #2E2E34' }}>
+                    <span style={{ fontSize: 12, color: '#7A7A83' }}>{hoverPt.fullDate}</span>
+                  </div>
+                  {/* Price row — layout_6NKOA6: row, fill */}
+                  <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
+                    <span style={{ fontSize: 12, color: '#7A7A83', flex: 1 }}>Price:</span>
+                    <span style={{ fontSize: 12, color: '#F9F9FA' }}>${hoverPt.price.toFixed(4)}</span>
+                  </div>
+                  {/* Vol row */}
+                  <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                    <span style={{ fontSize: 12, color: '#7A7A83', flex: 1 }}>Vol:</span>
+                    <span style={{ fontSize: 12, color: '#F9F9FA' }}>${fmt(hoverPt.volume)}</span>
+                  </div>
+                </div>
+              );
+            })()
           )}
         </div>
 
-        {/* Right Y-axis: ticks + last-price pill (Figma: layout_LROX9Z — padding 32px 16px) */}
+        {/* Right Y-axis — Figma: layout_0F2LFP, padding:32px 16px, space-between, w:68 */}
         <div style={{
           display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-          padding: '32px 8px', width: 56, flexShrink: 0, position: 'relative', height: PH,
+          padding: '32px 16px', width: 68, flexShrink: 0, position: 'relative', height: PH,
+          borderLeft: '1px solid #1B1B1C',
         }}>
           {yTicks.map((t, i) => (
             <span key={i} style={{ fontSize: 10, color: '#7A7A83' }}>{t.label}</span>
           ))}
-          {/* Last-price pill — absolutely positioned at lastPrice level */}
+          {/* Last-price pill — height:16, centered */}
           <div style={{
-            position: 'absolute', left: 4, right: 4, top: lastPillTop,
-            transform: 'translateY(-50%)',
+            position: 'absolute', left: '50%', top: lastPillTop,
+            transform: 'translate(-50%, -50%)',
             background: '#16C284', borderRadius: 4,
-            padding: '2px 4px', textAlign: 'center',
+            height: 16, display: 'flex', alignItems: 'center',
+            padding: '0 4px', whiteSpace: 'nowrap',
           }}>
-            <span style={{ fontSize: 10, color: '#F9F9FA', fontWeight: 500 }}>{lastPrice.toFixed(4)}</span>
+            <span style={{ fontSize: 10, color: '#F9F9FA', fontWeight: 500, lineHeight: 1 }}>{lastPrice.toFixed(4)}</span>
           </div>
+          {/* Hover price pill — height:16, centered */}
+          {hoverPt && hoverPillTop && (
+            <div style={{
+              position: 'absolute', left: '50%', top: hoverPillTop,
+              transform: 'translate(-50%, -50%)',
+              background: '#2E2E34', borderRadius: 4,
+              height: 16, display: 'flex', alignItems: 'center',
+              padding: '0 4px', whiteSpace: 'nowrap', pointerEvents: 'none',
+            }}>
+              <span style={{ fontSize: 10, color: '#F9F9FA', lineHeight: 1 }}>{hoverPt.price.toFixed(4)}</span>
+            </div>
+          )}
         </div>
       </div>
 
       {/* ── Volume chart-info row (Figma: second chart-info) ── */}
       <div style={{ display: 'flex' }}>
-        {/* Left axis: "Volume" label */}
+        {/* Left axis: "Volume" label only (Figma: layout_914BGF — narrow, centered label) */}
         <div style={{
-          display: 'flex', alignItems: 'flex-start', padding: 16,
-          width: 60, flexShrink: 0, borderRight: '1px solid #1B1B1C',
-          height: VH,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: 40, flexShrink: 0, borderRight: '1px solid #1B1B1C', height: VH,
         }}>
-          <span style={{ fontSize: 10, color: '#7A7A83' }}>Volume</span>
+          <span style={{ fontSize: 10, color: '#7A7A83', writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Volume</span>
         </div>
         {/* Volume bars */}
         <div style={{ flex: 1, height: VH, position: 'relative' }}>
+          {/* Total Vol. label — top-left of volume area */}
+          <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 4, pointerEvents: 'none', zIndex: 1 }}>
+            <span style={{ fontSize: 12, color: '#7A7A83' }}>Total Vol.</span>
+            <span style={{ fontSize: 12, color: '#F9F9FA' }}>${fmt(CHART_DATA.reduce((s, d) => s + d.volume * d.price, 0), 1)}</span>
+          </div>
           <svg viewBox={`0 0 ${W} ${VH}`} preserveAspectRatio="none"
             style={{ width: '100%', height: '100%', display: 'block' }}>
-            {data.map((d, i) => {
-              const barH = Math.max(2, (d.volume / maxVol) * (VH - 8));
-              const barW = Math.max(1, W / data.length - 1.5);
-              const isDown = i > 0 && d.price < data[i - 1].price;
-              return (
-                <rect key={i}
-                  x={Math.max(0, toX(i) - barW / 2)}
-                  y={VH - barH} width={barW} height={barH}
-                  fill={isDown ? 'rgba(255,59,70,0.2)' : 'rgba(22,194,132,0.2)'}
-                />
-              );
-            })}
+            {(() => {
+              const barStep = W / data.length;
+              const barW = Math.max(1, barStep - 1.5);
+              return data.map((d, i) => {
+                const barH = Math.max(2, (d.volume / maxVol) * (VH - 8));
+                const isDown = i > 0 && d.price < data[i - 1].price;
+                return (
+                  <rect key={i}
+                    x={i * barStep + 0.75}
+                    y={VH - barH} width={barW} height={barH}
+                    fill={isDown ? 'rgba(255,59,70,0.2)' : 'rgba(22,194,132,0.2)'}
+                  />
+                );
+              });
+            })()}
             {/* crosshair vertical in volume */}
             {hoverSvgX !== null && (
               <line x1={hoverSvgX} y1="0" x2={hoverSvgX} y2={VH} stroke="#44444B" strokeWidth="1" strokeDasharray="4 4" />
             )}
           </svg>
         </div>
-        {/* Right spacer to align with price chart */}
-        <div style={{ width: 56, flexShrink: 0 }} />
+        {/* Right volume axis: scale labels (Figma: layout_0F2LFP — space-between, padding:32px 16px) */}
+        <div style={{
+          display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+          padding: '32px 16px', width: 68, flexShrink: 0, height: VH,
+          borderLeft: '1px solid #1B1B1C',
+        }}>
+          <span style={{ fontSize: 10, color: '#7A7A83' }}>{fmtK(maxVol)}</span>
+          <span style={{ fontSize: 10, color: '#7A7A83' }}>{fmtK(Math.round(maxVol / 2))}</span>
+        </div>
       </div>
 
-      {/* ── Date labels ── */}
-      <div style={{ display: 'flex', padding: '6px 0' }}>
-        <div style={{ width: 60, flexShrink: 0 }} />
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', padding: '0 8px' }}>
+      {/* ── Date labels + hover pill (Figma: layout_SD5MUJ — abs pill #252527 at cursor x) ── */}
+      <div style={{ display: 'flex', borderTop: '1px solid #1B1B1C', padding: '6px 0' }}>
+        <div style={{ width: 40, flexShrink: 0, borderRight: '1px solid #1B1B1C' }} />
+        <div style={{ flex: 1, position: 'relative', display: 'flex', justifyContent: 'space-between', padding: '0 8px' }}>
           {dateLabels.map((d, i) => (
             <span key={i} style={{ fontSize: 10, color: '#7A7A83' }}>{d.label}</span>
           ))}
+          {/* Hover date pill — height:16, centered */}
+          {hover && hoverPt && hoverXPct !== null && (
+            <div style={{
+              position: 'absolute', top: '50%', left: `${hoverXPct}%`,
+              transform: 'translate(-50%, -50%)',
+              background: '#252527', borderRadius: 4,
+              height: 16, display: 'flex', alignItems: 'center',
+              padding: '0 4px', pointerEvents: 'none', whiteSpace: 'nowrap', zIndex: 10,
+            }}>
+              <span style={{ fontSize: 10, color: '#F9F9FA', lineHeight: 1 }}>{hoverPt.fullDate}</span>
+            </div>
+          )}
         </div>
-        <div style={{ width: 56, flexShrink: 0 }} />
+        <div style={{ width: 68, flexShrink: 0 }} />
       </div>
     </div>
   );
@@ -371,8 +503,8 @@ const AddFillIcon = () => (
   </svg>
 );
 const ChartLineIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M3.5 18.5L9.5 12.5L13.5 16.5L22 7M22 7H16M22 7V13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+  <svg width="16" height="16" viewBox="11 12 14 12" fill="currentColor">
+    <path d="M12.6666 12.3333C12.9152 12.3334 13.1549 12.426 13.3389 12.5931C13.5229 12.7602 13.6381 12.9899 13.662 13.2373L13.6666 13.3333V21.6667H23.3333C23.5901 21.6668 23.837 21.7657 24.0229 21.9429C24.2087 22.1202 24.3193 22.3621 24.3316 22.6186C24.344 22.8751 24.2572 23.1266 24.0892 23.3208C23.9212 23.5151 23.6849 23.6372 23.4293 23.662L23.3333 23.6667H12.6666C12.418 23.6667 12.1784 23.5741 11.9943 23.4069C11.8103 23.2398 11.6952 23.0101 11.6713 22.7627L11.6666 22.6667V13.3333C11.6666 13.0681 11.772 12.8138 11.9595 12.6262C12.1471 12.4387 12.4014 12.3333 12.6666 12.3333ZM23.462 14.212C24.3593 14.212 24.8086 15.2967 24.174 15.9307L20.4613 19.6433C20.3622 19.7424 20.2446 19.821 20.1152 19.8746C19.9858 19.9283 19.8471 19.9558 19.707 19.9558C19.5669 19.9558 19.4281 19.9283 19.2987 19.8746C19.1693 19.821 19.0517 19.7424 18.9526 19.6433L17.35 18.0407L15.7 19.6907C15.6071 19.7835 15.4968 19.8572 15.3755 19.9074C15.2541 19.9576 15.1241 19.9835 14.9927 19.9834C14.8614 19.9834 14.7313 19.9575 14.61 19.9072C14.4887 19.8569 14.3785 19.7832 14.2856 19.6903C14.1928 19.5975 14.1191 19.4872 14.0689 19.3658C14.0187 19.2445 13.9928 19.1144 13.9929 18.9831C13.9929 18.8518 14.0188 18.7217 14.0691 18.6004C14.1194 18.4791 14.1931 18.3689 14.286 18.276L16.596 15.9667C16.796 15.7668 17.0672 15.6545 17.35 15.6545C17.6327 15.6545 17.9039 15.7668 18.104 15.9667L19.7073 17.57L21.1613 16.1153C20.9564 16.0177 20.7909 15.8532 20.6918 15.649C20.5928 15.4448 20.5662 15.2129 20.6164 14.9916C20.6666 14.7702 20.7905 14.5725 20.968 14.431C21.1454 14.2894 21.3657 14.2125 21.5926 14.2127L23.462 14.212Z" />
   </svg>
 );
 const SettingsIcon = () => (
@@ -390,48 +522,95 @@ const ChevronRight = () => (
     <path d="M9.29 6.71a1 1 0 0 0 0 1.41L13.17 12l-3.88 3.88a1 1 0 1 0 1.41 1.41l4.59-4.59a1 1 0 0 0 0-1.41L10.7 6.7a1 1 0 0 0-1.41.01z" />
   </svg>
 );
-const EmptyMascot = ({ size = 56 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 56 56" fill="none">
-    <circle cx="28" cy="28" r="24" fill="#252527" />
-    <path d="M16 32c0-6.627 5.373-12 12-12s12 5.373 12 12" stroke="#7A7A83" strokeWidth="2" strokeLinecap="round" />
-    <circle cx="20" cy="26" r="2.5" fill="#7A7A83" />
-    <circle cx="36" cy="26" r="2.5" fill="#7A7A83" />
+/* Coin/token icon for order book collateral cell */
+const COIN_COLORS: Record<string, string> = { USDC: '#2775CA', USDT: '#26A17B', ETH: '#627EEA', BTC: '#F7931A', SOL: '#9945FF' };
+const CoinIcon = ({ symbol, size = 16 }: { symbol: string; size?: number }) => {
+  const bg = COIN_COLORS[symbol] ?? '#7A7A83';
+  return (
+    <div style={{ width: size, height: size, borderRadius: '50%', background: bg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <span style={{ fontSize: size * 0.45, color: '#fff', fontWeight: 700, lineHeight: 1, userSelect: 'none' }}>{symbol[0]}</span>
+    </div>
+  );
+};
+/* Figma: table-heading-sort — 16×16, up/down arrows */
+const SortIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path d="M8 3L5.5 6H10.5L8 3Z" fill="#7A7A83" />
+    <path d="M8 13L10.5 10H5.5L8 13Z" fill="#7A7A83" />
   </svg>
 );
 
-/* ─── Order book row ─── */
-interface OrderRow { id: string; price: number; amount: number; collateral: number }
-function OrderRow({
-  order, side, maxCol, isSelected, onSelect,
+/* ─── Order book row (Figma: layout_SWFIZ8 — h:44, row, padding:0 8px, br:8, relative) ─── */
+interface OrderData { id: string; price: number; amount: number; collateral: number; creatureIcon?: string }
+function OrderBookRow({
+  order, side, maxCol, isSelected, onSelect, collateralSymbol, chainLogo,
 }: {
-  order: OrderRow;
+  order: OrderData;
   side: 'buy' | 'sell';
   maxCol: number;
   isSelected: boolean;
   onSelect: () => void;
+  collateralSymbol: string;
+  chainLogo?: string;
 }) {
-  const pct = (order.collateral / maxCol) * 100;
-  const color     = side === 'sell' ? '#FD5E67' : '#5BD197';
-  const barColor  = side === 'sell' ? 'rgba(253,94,103,0.07)' : 'rgba(22,194,132,0.07)';
-  const selBg     = side === 'sell' ? 'rgba(253,94,103,0.08)' : 'rgba(22,194,132,0.08)';
+  /* sell orders panel → Buy button (green); buy orders panel → Sell button (red) */
+  const isSellPanel = side === 'sell';
+  /* Figma: fill bar side:sell=red, side:buy=green */
+  /* fill bar matches action button color: sell panel=Buy(green), buy panel=Sell(red) */
+  const barColor   = isSellPanel ? 'rgba(22,194,132,0.05)' : 'rgba(255,59,70,0.05)';
+  const btnBg      = isSellPanel ? 'rgba(22,194,132,0.2)'  : 'rgba(255,59,70,0.2)';
+  const btnColor   = isSellPanel ? '#5BD197' : '#FD5E67';
+  const btnLabel   = isSellPanel ? 'Buy' : 'Sell';
+  const fillPct    = (order.collateral / maxCol) * 100;
 
   return (
     <div
       onClick={onSelect}
       style={{
-        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
-        padding: '5px 20px', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', height: 44,
+        padding: '0 8px', cursor: 'pointer', borderRadius: 8,
         position: 'relative', overflow: 'hidden',
-        background: isSelected ? selBg : 'transparent',
+        background: isSelected ? '#1B1B1C' : 'rgba(255,255,255,0.03)',
         transition: 'background 0.1s',
       }}
-      onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = barColor; }}
-      onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+      onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#1B1B1C'; }}
+      onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.03)'; }}
     >
-      <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: `${pct}%`, background: barColor, pointerEvents: 'none' }} />
-      <span style={{ fontSize: 12, color, fontWeight: 500, position: 'relative' }}>${order.price.toFixed(4)}</span>
-      <span style={{ fontSize: 12, color: '#F9F9FA', textAlign: 'right', position: 'relative' }}>{order.amount.toLocaleString()}</span>
-      <span style={{ fontSize: 12, color: '#F9F9FA', textAlign: 'right', position: 'relative' }}>{order.collateral.toFixed(2)}</span>
+      {/* depth fill — from left (Figma: absolute, left:0) */}
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${fillPct}%`, background: barColor, pointerEvents: 'none' }} />
+      {/* Price — flex:1, fontSize:14, #F9F9FA (Figma: all same color, no side-based coloring) */}
+      <span style={{ flex: 1, fontSize: 14, color: '#F9F9FA', position: 'relative', zIndex: 1 }}>
+        {order.price.toFixed(4)}
+      </span>
+      {/* Amount — 96px fixed, K-formatted (e.g. 8.5K) */}
+      <span style={{ width: 96, textAlign: 'right', fontSize: 14, color: '#F9F9FA', position: 'relative', zIndex: 1 }}>
+        {fmtK(order.amount)}
+      </span>
+      {/* Collateral — 120px fixed, gap:4, coin icon (Figma: image-slot 16px) */}
+      <div style={{ width: 120, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 4, position: 'relative', zIndex: 1 }}>
+        <span style={{ fontSize: 14, color: '#F9F9FA' }}>{order.collateral.toFixed(2)}</span>
+        {chainLogo
+          ? <img src={chainLogo} alt={collateralSymbol} style={{ width: 16, height: 16, borderRadius: '50%', flexShrink: 0, objectFit: 'cover' }} />
+          : <CoinIcon symbol={collateralSymbol} size={16} />
+        }
+        {order.creatureIcon && (
+          <img src={order.creatureIcon} alt="creature" style={{ width: 16, height: 16, objectFit: 'contain', flexShrink: 0 }} />
+        )}
+      </div>
+      {/* Action — 120px fixed, flex-end (Figma: layout_TR59K6) */}
+      <div style={{ width: 120, display: 'flex', justifyContent: 'flex-end', position: 'relative', zIndex: 1 }}>
+        <button
+          onClick={e => { e.stopPropagation(); onSelect(); }}
+          style={{
+            width: 52, padding: '6px 0', borderRadius: 6, border: 'none', cursor: 'pointer',
+            background: btnBg, fontSize: 13, fontWeight: 500, color: btnColor,
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.8'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1'; }}
+        >
+          {btnLabel}
+        </button>
+      </div>
     </div>
   );
 }
@@ -444,7 +623,7 @@ export default function MarketDetail() {
   const navigate   = useNavigate();
   const market     = markets.find(m => m.id === id);
 
-  const [selectedOrder, setSelectedOrder]         = useState<OrderRow | null>(null);
+  const [selectedOrder, setSelectedOrder]         = useState<OrderData | null>(null);
   const [selectedSide, setSelectedSide]           = useState<'buy' | 'sell' | null>(null);
   const [activeTab, setActiveTab]                 = useState<'filled' | 'open'>('filled');
   const [timeRange, setTimeRange]                 = useState('1d');
@@ -453,7 +632,7 @@ export default function MarketDetail() {
   const [collateral, setCollateral]               = useState('USDC');
   const [fillType, setFillType]                   = useState('All');
   const [orderType, setOrderType]                 = useState('All');
-  const [hoverTime, setHoverTime]                 = useState<string | null>(null);
+  const [showChart, setShowChart]                 = useState(true);
 
   /* not found */
   if (!market) {
@@ -474,7 +653,7 @@ export default function MarketDetail() {
   const maxBuy       = Math.max(...BUY_ORDERS.map(o => o.collateral));
   const currentOrders = activeTab === 'filled' ? MY_FILLED_ORDERS : MY_OPEN_ORDERS;
 
-  function selectOrder(order: OrderRow, side: 'buy' | 'sell') {
+  function selectOrder(order: OrderData, side: 'buy' | 'sell') {
     if (selectedOrder?.id === order.id) { setSelectedOrder(null); setSelectedSide(null); }
     else { setSelectedOrder(order); setSelectedSide(side); }
   }
@@ -752,13 +931,13 @@ export default function MarketDetail() {
             MAIN 2-COL LAYOUT
             ══════════════════════════════════════ */}
         {/* layout_QYPFU4 — row, gap:16, fill */}
-        <div style={{ display: 'flex', gap: 16, marginTop: 16, alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
 
           {/* ═══════════════════════════════════════
               LEFT: market frame (Figma: 37315-160537)
               column, gap:16, padding:16px 0px
               ═══════════════════════════════════════ */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, flex: 1, minWidth: 0, paddingTop: 16 }}>
 
             {/* ── block-title (Figma: layout_R255GA — row, space-between, center, gap:8) ── */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -768,7 +947,7 @@ export default function MarketDetail() {
                 <a
                   href="#" onClick={e => e.preventDefault()}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 2,
+                    display: 'flex', alignItems: 'center', gap: 2, alignSelf: 'flex-start',
                     fontSize: 12, color: '#7A7A83', textDecoration: 'none',
                     borderBottom: '1px solid #252527', paddingBottom: 1,
                   }}
@@ -783,15 +962,17 @@ export default function MarketDetail() {
                 {filterBtn('Collateral', collateral, () => setCollateral(c => c === 'USDC' ? 'USDT' : 'USDC'))}
                 {filterBtn('Fill', fillType, () => setFillType(v => v === 'All' ? 'Partial' : 'All'))}
                 {filterBtn('Order', orderType, () => setOrderType(v => v === 'All' ? 'Limit' : 'All'))}
-                {/* icon-only chart button (Figma: layout_U09NN2 — padding:8) */}
+                {/* icon-only chart button (Figma: layout_U09NN2 — padding:8, active=green #5BD197) */}
                 <button
+                  onClick={() => setShowChart(v => !v)}
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     padding: 8, borderRadius: 8, cursor: 'pointer',
-                    background: '#1B1B1C', border: 'none', color: '#7A7A83',
+                    background: '#1B1B1C', border: 'none',
+                    color: showChart ? '#5BD197' : '#7A7A83',
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#252527'; e.currentTarget.style.color = '#F9F9FA'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = '#1B1B1C'; e.currentTarget.style.color = '#7A7A83'; }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#252527'; if (!showChart) e.currentTarget.style.color = '#F9F9FA'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#1B1B1C'; if (!showChart) e.currentTarget.style.color = '#7A7A83'; }}
                 >
                   <ChartLineIcon />
                 </button>
@@ -799,82 +980,223 @@ export default function MarketDetail() {
             </div>
 
             {/* ── chart card (Figma: layout_8CQU2J — column, border:1px #1B1B1C, br:8) ── */}
-            <div style={{ border: '1px solid #1B1B1C', borderRadius: 8, overflow: 'hidden' }}>
+            {showChart && <div style={{ border: '1px solid #1B1B1C', borderRadius: 8, overflow: 'hidden' }}>
+              {/* interactive chart (time bar is inside PriceChart) */}
+              <PriceChart
+                ticker={market.ticker}
+                timeRange={timeRange} setTimeRange={setTimeRange}
+                chartType={chartType} setChartType={setChartType}
+              />
+            </div>}
 
-              {/* time bar (Figma: layout_O4P10O — row, center, gap:12, padding:8px 16px 8px 8px) */}
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 12,
-                padding: '8px 16px 8px 8px', borderBottom: '1px solid #1B1B1C',
-              }}>
-                {/* time-range: 1d / 7d / 30d (Figma: layout_604108 — row, gap:4) */}
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {['1d', '7d', '30d'].map(r => (
-                    <button key={r} onClick={() => setTimeRange(r)} style={{
-                      padding: '2px 8px', borderRadius: 4, border: 'none', cursor: 'pointer',
-                      background: timeRange === r ? '#1B1B1C' : 'transparent',
-                      color: timeRange === r ? '#F9F9FA' : '#7A7A83',
-                      fontSize: 12, fontWeight: 500,
-                    }}>{r}</button>
-                  ))}
-                </div>
-                {/* divider (Figma: layout_Y7UOKT — line, fill height) */}
-                <div style={{ width: 1, alignSelf: 'stretch', background: '#1B1B1C', flexShrink: 0 }} />
-                {/* type: Price / FDV (Figma: layout_0IYV8T — row, gap:4, fill) */}
-                <div style={{ display: 'flex', gap: 4, flex: 1 }}>
-                  {['Price', 'FDV'].map(t => (
-                    <button key={t} onClick={() => setChartType(t)} style={{
-                      padding: '2px 8px', borderRadius: 4, border: 'none', cursor: 'pointer',
-                      background: chartType === t ? '#1B1B1C' : 'transparent',
-                      color: chartType === t ? '#F9F9FA' : '#7A7A83',
-                      fontSize: 12, fontWeight: 500,
-                    }}>{t}</button>
-                  ))}
-                </div>
-                {/* hovered time display (Figma: layout_NVIIB0 — row, gap:4) */}
-                {hoverTime && (
-                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                    <span style={{ fontSize: 12, color: '#7A7A83' }}>Time</span>
-                    <span style={{ fontSize: 12, color: '#F9F9FA' }}>{hoverTime}</span>
+            {/* ── market-detail: order book (Figma: 37315-161694 — row, gap:16) ── */}
+            <div>
+
+              {/* 2-panel row */}
+              <div style={{ display: 'flex', gap: 16 }}>
+
+                {/* LEFT PANEL: Sell orders → Buy button (Figma: layout_L7PM55) */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
+                  {/* Column headers (Figma: table-heading — row, padding:0 8px, cell padding:2px 0) */}
+                  <div style={{ display: 'flex', alignItems: 'center', padding: '0 8px' }}>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2, padding: '8px 0' }}>
+                      <span style={{ fontSize: 12, color: '#7A7A83' }}>Price ($)</span>
+                      <SortIcon />
+                    </div>
+                    <div style={{ width: 96, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2, padding: '8px 0' }}>
+                      <span style={{ fontSize: 12, color: '#7A7A83' }}>Amount</span>
+                      <SortIcon />
+                    </div>
+                    <div style={{ width: 120, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2, padding: '8px 0' }}>
+                      <span style={{ fontSize: 12, color: '#7A7A83' }}>Collateral</span>
+                      <SortIcon />
+                    </div>
+                    {/* "All" header hidden per Figma (opacity:0) */}
+                    <div style={{ width: 120, opacity: 0 }} />
                   </div>
-                )}
-              </div>
+                  {SELL_ORDERS.map(order => (
+                    <OrderBookRow key={order.id} order={order} side="sell" maxCol={maxSell}
+                      isSelected={selectedOrder?.id === order.id}
+                      onSelect={() => selectOrder(order, 'sell')}
+                      collateralSymbol={collateral} chainLogo={market.chainLogo} />
+                  ))}
+                </div>
 
-              {/* interactive chart */}
-              <PriceChart ticker={market.ticker} onHoverTime={setHoverTime} />
+                {/* Vertical divider (Figma: 1px #1B1B1C) */}
+                <div style={{ width: 1, background: '#1B1B1C', alignSelf: 'stretch', flexShrink: 0 }} />
+
+                {/* RIGHT PANEL: Buy orders → Sell button */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
+                  {/* Column headers */}
+                  <div style={{ display: 'flex', alignItems: 'center', padding: '0 8px' }}>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2, padding: '8px 0' }}>
+                      <span style={{ fontSize: 12, color: '#7A7A83' }}>Price ($)</span>
+                      <SortIcon />
+                    </div>
+                    <div style={{ width: 96, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2, padding: '8px 0' }}>
+                      <span style={{ fontSize: 12, color: '#7A7A83' }}>Amount</span>
+                      <SortIcon />
+                    </div>
+                    <div style={{ width: 120, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2, padding: '8px 0' }}>
+                      <span style={{ fontSize: 12, color: '#7A7A83' }}>Collateral</span>
+                      <SortIcon />
+                    </div>
+                    {/* "All" header hidden per Figma (opacity:0) */}
+                    <div style={{ width: 120, opacity: 0 }} />
+                  </div>
+                  {BUY_ORDERS.map(order => (
+                    <OrderBookRow key={order.id} order={order} side="buy" maxCol={maxBuy}
+                      isSelected={selectedOrder?.id === order.id}
+                      onSelect={() => selectOrder(order, 'buy')}
+                      collateralSymbol={collateral} chainLogo={market.chainLogo} />
+                  ))}
+                </div>
+
+              </div>
             </div>
 
-            {/* ── market-detail: order book (Figma: layout_SBRYFB — column, gap:2) ── */}
-            <div style={{ border: '1px solid #252527', borderRadius: 8, overflow: 'hidden' }}>
-              {/* Order book column headers (Figma: layout_XEET2H — row, padding:0px 8px) */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '8px 20px', borderBottom: '1px solid #1B1B1C' }}>
-                <span style={{ fontSize: 11, color: '#7A7A83' }}>Price ({collateral})</span>
-                <span style={{ fontSize: 11, color: '#7A7A83', textAlign: 'right' }}>Amount ({market.ticker})</span>
-                <span style={{ fontSize: 11, color: '#7A7A83', textAlign: 'right' }}>Collateral ({collateral})</span>
+            {/* ── recent trades (Figma: 37315-189288 — column, gap:8, padding:16px 0, border-top 4px #1B1B1C) ── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '16px 0', borderTop: '4px solid #1B1B1C' }}>
+
+              {/* block-title */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 18, fontWeight: 500, color: '#F9F9FA' }}>Recent Trades</span>
               </div>
-              {/* Sell orders */}
+
+              {/* table */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {SELL_ORDERS.map(order => (
-                  <OrderRow key={order.id} order={order} side="sell" maxCol={maxSell}
-                    isSelected={selectedOrder?.id === order.id}
-                    onSelect={() => selectOrder(order, 'sell')} />
+
+                {/* table header (row, padding:0 8px, border-bottom 1px #1B1B1C) */}
+                <div style={{ display: 'flex', alignItems: 'center', padding: '0 8px', borderBottom: '1px solid #1B1B1C' }}>
+                  {/* Time — w:120 */}
+                  <div style={{ width: 120, padding: '8px 0' }}>
+                    <span style={{ fontSize: 12, color: '#7A7A83' }}>Time</span>
+                  </div>
+                  {/* Side — w:96 */}
+                  <div style={{ width: 96, padding: '8px 0' }}>
+                    <span style={{ fontSize: 12, color: '#7A7A83' }}>Side</span>
+                  </div>
+                  {/* Pair — fill */}
+                  <div style={{ flex: 1, padding: '8px 0' }}>
+                    <span style={{ fontSize: 12, color: '#7A7A83' }}>Pair</span>
+                  </div>
+                  {/* Price ($) — w:144, right */}
+                  <div style={{ width: 144, display: 'flex', justifyContent: 'flex-end', padding: '8px 0' }}>
+                    <span style={{ fontSize: 12, color: '#7A7A83' }}>Price ($)</span>
+                  </div>
+                  {/* Amount — w:144, right */}
+                  <div style={{ width: 144, display: 'flex', justifyContent: 'flex-end', padding: '8px 0' }}>
+                    <span style={{ fontSize: 12, color: '#7A7A83' }}>Amount</span>
+                  </div>
+                  {/* Collateral — w:160, right */}
+                  <div style={{ width: 160, display: 'flex', justifyContent: 'flex-end', padding: '8px 0' }}>
+                    <span style={{ fontSize: 12, color: '#7A7A83' }}>Collateral</span>
+                  </div>
+                  {/* Tx.ID — w:96, right */}
+                  <div style={{ width: 96, display: 'flex', justifyContent: 'flex-end', padding: '8px 0' }}>
+                    <span style={{ fontSize: 12, color: '#7A7A83' }}>Tx.ID</span>
+                  </div>
+                </div>
+
+                {/* rows */}
+                {recentTrades.map(t => (
+                  <div
+                    key={t.id}
+                    style={{ display: 'flex', alignItems: 'center', padding: '0 8px', borderBottom: '1px solid #1B1B1C', cursor: 'pointer' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#1B1B1C')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+
+                    {/* Time — w:120, padding:16px 0, 14px 400 gray */}
+                    <div style={{ width: 120, padding: '16px 0', flexShrink: 0 }}>
+                      <span style={{ fontSize: 14, color: '#7A7A83' }}>{t.time}</span>
+                    </div>
+
+                    {/* Side — w:96, padding:16px 0, 14px 500 + badge */}
+                    <div style={{ width: 96, padding: '16px 0', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: t.side === 'buy' ? '#5BD197' : '#FD5E67' }}>
+                        {t.side === 'buy' ? 'Buy' : 'Sell'}
+                      </span>
+                      {t.side === 'buy' && t.badge && (
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          padding: '4px 8px', borderRadius: 9999,
+                          background: t.badge.color, color: '#0A0A0B',
+                          fontSize: 10, fontWeight: 500, lineHeight: '1.2em', textTransform: 'uppercase' as const,
+                          letterSpacing: '0.02em',
+                        }}>{t.badge.initials}</span>
+                      )}
+                    </div>
+
+                    {/* Pair — fill, coin icon + pair text */}
+                    <div style={{ flex: 1, padding: '16px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ padding: 2, flexShrink: 0 }}>
+                        <img
+                          src={t.pairLogo}
+                          alt={t.pair}
+                          style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }}
+                          onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${t.pair.split('/')[0]}&background=252527&color=F9F9FA&size=20`; }}
+                        />
+                      </div>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: '#F9F9FA' }}>{t.pair}</span>
+                    </div>
+
+                    {/* Price — w:144, right, 14px 500 white */}
+                    <div style={{ width: 144, padding: '16px 0', flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: '#F9F9FA' }}>{t.price.toFixed(4)}</span>
+                    </div>
+
+                    {/* Amount — w:144, right, 14px 500 white */}
+                    <div style={{ width: 144, padding: '16px 0', flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: '#F9F9FA' }}>{fmtK(t.amount)}</span>
+                    </div>
+
+                    {/* Collateral — w:160, right, value + collateral logo + whale icon */}
+                    <div style={{ width: 160, padding: '16px 0', flexShrink: 0, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 4 }}>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: '#F9F9FA' }}>{fmtK(t.collateral)}</span>
+                      <div style={{ padding: 2, flexShrink: 0 }}>
+                        <img
+                          src={t.collateralLogo}
+                          alt="collateral"
+                          style={{ width: 16, height: 16, borderRadius: '50%', objectFit: 'cover' }}
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      </div>
+                      <div style={{ padding: 2, flexShrink: 0 }}>
+                        <img
+                          src={t.creatureIcon}
+                          alt="creature"
+                          style={{ width: 16, height: 16, objectFit: 'contain' }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Tx.ID — w:96, right, small bordered button */}
+                    <div style={{ width: 96, padding: '16px 0', flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        style={{
+                          padding: 6, border: '1px solid #252527', borderRadius: 6,
+                          background: 'transparent', color: '#F9F9FA', flexShrink: 0, cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#44444B')}
+                        onMouseLeave={(e) => (e.currentTarget.style.borderColor = '#252527')}
+                        onClick={() => window.open(`https://etherscan.io/tx/${t.txId}`, '_blank')}
+                      >
+                        <span style={{ padding: 2, display: 'flex' }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M6 6h12v12h-2V9.41L5.41 20 4 18.59 14.59 8H6V6Z" />
+                          </svg>
+                        </span>
+                      </button>
+                    </div>
+
+                  </div>
                 ))}
-              </div>
-              {/* Spread row */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 20px', borderTop: '1px solid #252527', borderBottom: '1px solid #252527' }}>
-                <span style={{ fontSize: 15, fontWeight: 700, color: '#F9F9FA' }}>${fmt(market.price, 4)}</span>
-                <span style={{ fontSize: 12, color: market.priceChange24h >= 0 ? '#5BD197' : '#FD5E67' }}>
-                  {market.priceChange24h >= 0 ? '+' : ''}{market.priceChange24h.toFixed(2)}%
-                </span>
-              </div>
-              {/* Buy orders */}
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {BUY_ORDERS.map(order => (
-                  <OrderRow key={order.id} order={order} side="buy" maxCol={maxBuy}
-                    isSelected={selectedOrder?.id === order.id}
-                    onSelect={() => selectOrder(order, 'buy')} />
-                ))}
+
               </div>
             </div>
+
           </div>
 
           {/* LINE divider (Figma: id:37222:132672 — layout_2I2YPO, stroke_C1E8N2: 1px #1B1B1C, fill height) */}
@@ -886,42 +1208,40 @@ export default function MarketDetail() {
               ═══════════════════════════════════════ */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: 384, flexShrink: 0 }}>
 
-            {/* ── trade-panel (Figma: layout_Y4KCU5 — column, center, gap:16, pb:24, w:384)
+            {/* ── trade-panel (Figma: layout_0FKQ30 — column, center, gap:16, pb:24, w:384)
                 fills: #0A0A0B | strokes: border-bottom 4px #1B1B1C ── */}
             <div style={{
               background: '#0A0A0B',
               borderBottom: '4px solid #1B1B1C',
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
-              paddingBottom: 24,
+              paddingBottom: 24, paddingTop: 16,
             }}>
 
-              {/* block-title (Figma: layout_051I26 — row, stretch) */}
-              <div style={{ display: 'flex', alignSelf: 'stretch', padding: '16px 16px 0' }}>
-                {/* title (layout_KCYZYH — column, center, gap:4, fill) */}
+              {/* block-title (Figma: layout_WB79CK — row, stretch, no side padding) */}
+              <div style={{ display: 'flex', alignSelf: 'stretch' }}>
+                {/* title (layout_DDOVKO — column, center, gap:4, fill) */}
                 <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4, flex: 1 }}>
-                  {/* token (layout_YWO9IS — row, center, gap:8, hug) */}
+                  {/* token row: "Trade SKATE" — label/text-label-lg 18px 500 */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 18, fontWeight: 500, color: '#F9F9FA' }}>
                       Trade {market.ticker}
                     </span>
                   </div>
-                  {/* price (layout_YIU0YL — row, center, gap:2, hug) */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {/* price row: "Price -" — body/text-body-xs 12px gray */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <span style={{ fontSize: 12, color: '#7A7A83' }}>Price</span>
-                    <span style={{ fontSize: 12, color: selectedOrder ? '#F9F9FA' : '#7A7A83' }}>
-                      {selectedOrder ? ('$' + selectedOrder.price.toFixed(4)) : '-'}
-                    </span>
+                    <span style={{ fontSize: 12, color: '#7A7A83' }}>{selectedOrder ? ('$' + selectedOrder.price.toFixed(4)) : '-'}</span>
                   </div>
                 </div>
               </div>
 
-              {/* trade-form (Figma: layout_TCBDAZ — column, center, padding:32, h:216, stroke:1px #1B1B1C) */}
+              {/* trade-form (Figma: layout_3C9876 — column, center, padding:32, h:216, br:10, stroke:1px #1B1B1C) */}
               {selectedOrder && selectedSide ? (
                 /* ── Order selected state ── */
                 <div style={{
                   display: 'flex', flexDirection: 'column', justifyContent: 'center',
                   alignSelf: 'stretch', padding: 32, minHeight: 216,
-                  border: '1px solid #1B1B1C', gap: 16,
+                  border: '1px solid #1B1B1C', borderRadius: 10, gap: 16,
                 }}>
                   {/* buy / sell toggle */}
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -945,33 +1265,33 @@ export default function MarketDetail() {
                   </div>
                 </div>
               ) : (
-                /* ── Empty state: mascot 96×96 (Figma: layout_NP1Q25 — 96×96) ── */
+                /* ── Empty state: mascot (Figma: mascot 96×96 + text) ── */
                 <div style={{
                   display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center',
                   alignSelf: 'stretch', padding: 32, height: 216,
-                  border: '1px solid #1B1B1C', gap: 12,
+                  border: '1px solid #1B1B1C', borderRadius: 10, gap: 12,
                 }}>
-                  <EmptyMascot size={96} />
+                  <img src={mascotWhale} alt="Whales mascot" style={{ width: 96, height: 96, objectFit: 'contain' }} />
                   <p style={{ fontSize: 12, color: '#7A7A83', textAlign: 'center', margin: 0, lineHeight: '1.6' }}>
                     No order selected yet.<br />Pick one from the list to start trading.
                   </p>
                 </div>
               )}
 
-              {/* buttons (Figma: layout_U0BBSN — row, stretch, gap:8, fill)
-                  button: secondary/filled/lg — padding:10px 20px, br:8
+              {/* buttons (Figma: layout_3EZPEQ — row, stretch, gap:8, fill, no outer padding)
+                  button: secondary/filled/lg — padding:10px 20px, br:10
                   disabled: opacity 0.4, bg #F9F9FA, text #0A0A0B */}
-              <div style={{ display: 'flex', alignSelf: 'stretch', gap: 8, padding: '0 16px' }}>
+              <div style={{ display: 'flex', alignSelf: 'stretch', gap: 8 }}>
                 <button
                   disabled={!selectedOrder}
                   style={{
                     flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center',
-                    gap: 8, padding: '10px 20px', borderRadius: 8, border: 'none',
+                    gap: 8, padding: '10px 20px', borderRadius: 10, border: 'none',
                     cursor: selectedOrder ? 'pointer' : 'not-allowed',
                     background: selectedOrder
                       ? (selectedSide === 'buy' ? '#16C284' : '#FD5E67')
                       : '#F9F9FA',
-                    fontSize: 14, fontWeight: 500,
+                    fontSize: 16, fontWeight: 500,
                     color: '#0A0A0B',
                     opacity: selectedOrder ? 1 : 0.4,
                     transition: 'opacity 0.15s',
@@ -983,9 +1303,8 @@ export default function MarketDetail() {
                 </button>
               </div>
 
-              {/* oder-info-group (Figma: layout_KNCXKG — column, gap:8, fill)
-                  offer-info-item label: bottom-dashed border #2E2E34 (stroke_U615P2) */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignSelf: 'stretch', gap: 8, padding: '0 16px' }}>
+              {/* oder-info-group (Figma: layout_M3HK0O — column, gap:8, fill, no outer side padding) */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignSelf: 'stretch', gap: 8 }}>
                 {[
                   { label: 'Price',          value: selectedOrder ? ('$' + selectedOrder.price.toFixed(4) + ' ' + collateral) : '-' },
                   { label: 'Amount Deliver', value: selectedOrder ? (selectedOrder.amount.toLocaleString() + ' ' + market.ticker) : '-' },
@@ -993,9 +1312,9 @@ export default function MarketDetail() {
                 ].map(row => (
                   /* oder-info (layout_Y7TI48 — row, space-between, center, gap:16) */
                   <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
-                    {/* offer-info-item left (layout_ZT3SBO) + stroke_U615P2 = dashed bottom border */}
+                    {/* offer-info-item left — body/text-body-sm 14px + dashed bottom stroke_5HABF9 */}
                     <span style={{
-                      fontSize: 12, color: '#7A7A83',
+                      fontSize: 14, color: '#7A7A83',
                       borderBottom: '1px dashed #2E2E34', paddingBottom: 2,
                     }}>
                       {row.label}
@@ -1009,13 +1328,11 @@ export default function MarketDetail() {
               </div>
             </div>
 
-            {/* ── my-orders (Figma: layout_CO3905 — column, gap:16, fill) ── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {/* ── my-orders (Figma: 37225-131293 — column, fill, gap:16) ── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-              {/* tab (Figma: layout_8EFV42 — row, gap:24, 384×52)
-                  active: fill_B0EITJ #5BD197 indicator, fill_1P3MUN #F9F9FA text
-                  inactive: fill_B6YLG1 #7A7A83 text, fill_XY3AGF #1B1B1C badge */}
-              <div style={{ display: 'flex', height: 52, borderBottom: '1px solid #1B1B1C' }}>
+              {/* tab (Figma: layout_BU1A10 — row, gap:24, h:52, stroke bottom 1px #1B1B1C) */}
+              <div style={{ display: 'flex', gap: 24, height: 52, borderBottom: '1px solid #1B1B1C' }}>
                 {[
                   { key: 'filled' as const, label: 'My Filled Orders', count: MY_FILLED_ORDERS.length },
                   { key: 'open'   as const, label: 'My Open Orders',   count: MY_OPEN_ORDERS.length   },
@@ -1026,122 +1343,136 @@ export default function MarketDetail() {
                       key={tab.key}
                       onClick={() => setActiveTab(tab.key)}
                       style={{
-                        flex: 1, display: 'flex', flexDirection: 'column',
+                        display: 'flex', flexDirection: 'column',
                         justifyContent: 'space-between', alignItems: 'center',
-                        padding: '8px 0', background: 'transparent', border: 'none', cursor: 'pointer',
+                        padding: 0, background: 'transparent', border: 'none', cursor: 'pointer',
                       }}
                     >
-                      {/* top indicator (inactive = transparent, 16×2 px) */}
+                      {/* top spacer (16×2 transparent) */}
                       <div style={{ width: 16, height: 2 }} />
-                      {/* tab-label (layout_YWO9IS — row, center, gap:8) */}
+                      {/* tab-label: row, center, gap:8 */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontSize: 14, fontWeight: 500, color: active ? '#F9F9FA' : '#7A7A83', whiteSpace: 'nowrap' }}>
                           {tab.label}
                         </span>
-                        {/* whales-badge (layout_DFI7E4 — padding:4px 8px, br:9999) */}
+                        {/* whales-badge — active: rgba(22,194,132,0.1) + #5BD197 | inactive: #1B1B1C + #B4B4BA */}
                         <span style={{
                           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                           padding: '4px 8px', borderRadius: 9999,
                           background: active ? 'rgba(22,194,132,0.1)' : '#1B1B1C',
                           color: active ? '#5BD197' : '#B4B4BA',
-                          fontSize: 10, fontWeight: 700,
+                          fontSize: 10, fontWeight: 700, lineHeight: 1,
                         }}>
                           {tab.count}
                         </span>
                       </div>
-                      {/* bottom active-indicator (fill) */}
+                      {/* bottom active indicator — fill width×2, green when active */}
                       <div style={{ height: 2, alignSelf: 'stretch', background: active ? '#5BD197' : 'transparent' }} />
                     </button>
                   );
                 })}
               </div>
 
-              {/* order-list (layout_CO3905 — column, fill) */}
+              {/* order-list (layout_NQ4FQW — column, fill) */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {currentOrders.length === 0 ? (
-                  <div style={{ padding: '28px 16px', textAlign: 'center' }}>
-                    <p style={{ fontSize: 12, color: '#7A7A83', margin: 0 }}>No orders yet</p>
+                  /* Empty state — layout_ODVNFV: column, center, h:240, padding:24 64, br:10, border:1px #1B1B1C */
+                  <div style={{
+                    display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center',
+                    gap: 16, padding: '24px 64px', height: 240,
+                    border: '1px solid #1B1B1C', borderRadius: 10,
+                  }}>
+                    <img src={emptyOrdersIllustration} alt="" style={{ width: 64, height: 64, objectFit: 'contain' }} />
+                    <p style={{ fontSize: 12, color: '#7A7A83', textAlign: 'center', margin: 0, lineHeight: '1.33' }}>
+                      No order yet. Start trading to see your history here.
+                    </p>
                   </div>
                 ) : currentOrders.map(order => (
-                  /* myorder-item (layout_UY2DN8 — column, gap:12, pb:16, stroke_OLHN3B = bottom 1px #1B1B1C) */
-                  <div
-                    key={order.id}
-                    style={{
-                      display: 'flex', flexDirection: 'column', gap: 12,
-                      padding: '16px 0', borderBottom: '1px solid #1B1B1C',
-                    }}
-                  >
-                    {/* Column (layout_J4B4M5 — row, space-between, center, fill) */}
+                  /* myorder-item — column, gap:12, padding-bottom:16, border-bottom 1px #1B1B1C */
+                  <div key={order.id} style={{
+                    display: 'flex', flexDirection: 'column', gap: 12,
+                    padding: '16px 0 16px', borderBottom: '1px solid #1B1B1C',
+                  }}>
+
+                    {/* Column (layout_WNG2V9 — row, space-between, center, fill) */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      {/* Row (layout_FIYZ01 — row, gap:4) */}
+                      {/* Row left: side + name + optional position badge */}
                       <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                        {/* side color text */}
-                        <span style={{
-                          fontSize: 12, fontWeight: 500,
-                          color: order.side === 'buy' ? '#5BD197' : '#FD5E67',
-                        }}>
+                        {/* side — label/text-label-sm 14px 500 */}
+                        <span style={{ fontSize: 14, fontWeight: 500, color: order.side === 'buy' ? '#5BD197' : '#FD5E67' }}>
                           {order.side === 'buy' ? 'Buy' : 'Sell'}
                         </span>
-                        {/* Name (layout_L3PYAI — row, gap:4) */}
-                        <span style={{ fontSize: 12, fontWeight: 500, color: '#F9F9FA' }}>
-                          {market.ticker}
+                        {/* Name: ticker/collateral — label/text-label-sm 14px 500 gray */}
+                        <span style={{ fontSize: 14, fontWeight: 500, color: '#7A7A83' }}>
+                          {market.ticker}/{order.collateralSymbol}
                         </span>
+                        {/* position badge (whales-badge badge=position) — bg #EAB308, text white, 9999br */}
+                        {order.hasPosition && (
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            padding: '4px 8px', borderRadius: 9999,
+                            background: '#EAB308', color: '#fff',
+                            fontSize: 10, fontWeight: 700, lineHeight: 1,
+                          }}>
+                            RS
+                          </span>
+                        )}
                       </div>
-                      {/* time ago text */}
-                      <span style={{ fontSize: 12, color: '#7A7A83' }}>{order.time}</span>
+                      {/* timestamp — body/text-body-xs 12px gray */}
+                      <span style={{ fontSize: 12, color: '#7A7A83', whiteSpace: 'nowrap' }}>{order.time}</span>
                     </div>
 
-                    {/* Row (layout_U856NW — row, align:flex-end, gap:10, fill) */}
+                    {/* Row (layout_KQEAFV — row, align-end, fill, gap:10) */}
                     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
-                      {/* Column (layout_GA7ZV3 — column, gap:4, fill) */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-                        {/* price row (layout_E5CWWL — row, center, gap:4, fill) */}
+
+                      {/* Column left (layout_A5RRIW — column, gap:4, fill) */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0 }}>
+                        {/* price row (layout_BB855C — row, center, fill, gap:4) */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          {/* label (layout_O8ROFQ — row, center, gap:2) */}
-                          <span style={{ fontSize: 12, color: '#7A7A83' }}>Price</span>
-                          {/* amount+collateral (layout_YIU0YL — row, center, gap:2) */}
-                          <span style={{ fontSize: 12, fontWeight: 500, color: '#F9F9FA' }}>
+                          <span style={{ fontSize: 12, color: '#7A7A83', whiteSpace: 'nowrap' }}>
+                            {order.hasPosition ? 'Your Entry / Original Price' : 'Price'}
+                          </span>
+                          <span style={{ fontSize: 12, fontWeight: 500, color: order.hasPosition ? '#5BD197' : '#F9F9FA' }}>
                             ${order.price.toFixed(4)}
                           </span>
                         </div>
-                        {/* amount+collateral row */}
+                        {/* amount / collateral row (layout_BB855C — row, center, fill, gap:4) */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <span style={{ fontSize: 12, color: '#7A7A83' }}>Amount</span>
+                          <span style={{ fontSize: 12, color: '#7A7A83', whiteSpace: 'nowrap' }}>Amount / Collateral</span>
                           <span style={{ fontSize: 12, fontWeight: 500, color: '#F9F9FA' }}>
-                            {order.amount >= 1000 ? (order.amount / 1000).toFixed(1) + 'K' : order.amount}
+                            {fmtK(order.amount)}
                           </span>
                           <span style={{ fontSize: 12, color: '#7A7A83' }}>/</span>
                           <span style={{ fontSize: 12, fontWeight: 500, color: '#F9F9FA' }}>
-                            {order.collateral} {order.collateralSymbol}
+                            {order.collateral}
                           </span>
+                          <span style={{ fontSize: 12, color: '#7A7A83' }}>{order.collateralSymbol}</span>
                         </div>
                       </div>
 
-                      {/* button (layout_IM74H7 — row, center, gap:4, padding:6px 12px)
-                          Resell: fill_Y9Y7MQ rgba(234,179,8,0.1), text fill_UWKHQI #FACC15
-                          Cancel: red tint */}
+                      {/* Resell button — only for Buy (Figma: Sell rows have no button)
+                          secondary/tonal/sm: padding 6px 12px, br:8, bg rgba(234,179,8,0.1), text #FACC15 12px 500
+                          Open orders: Cancel button (red) for both sides */}
                       {activeTab === 'filled' ? (
-                        <button
-                          style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            gap: 4, padding: '6px 12px', borderRadius: 8, border: 'none',
-                            cursor: 'pointer',
-                            background: 'rgba(234,179,8,0.1)',
-                            fontSize: 14, fontWeight: 500, color: '#FACC15', whiteSpace: 'nowrap',
-                          }}
-                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(234,179,8,0.18)'; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(234,179,8,0.1)'; }}
-                        >
-                          Resell
-                        </button>
+                        order.side === 'buy' && (
+                          <button
+                            style={{
+                              flexShrink: 0, padding: '6px 12px', borderRadius: 8, border: 'none',
+                              cursor: 'pointer', background: 'rgba(234,179,8,0.1)',
+                              fontSize: 12, fontWeight: 500, color: '#FACC15', whiteSpace: 'nowrap',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(234,179,8,0.18)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(234,179,8,0.1)'; }}
+                          >
+                            Resell
+                          </button>
+                        )
                       ) : (
                         <button
                           style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            gap: 4, padding: '6px 12px', borderRadius: 8, border: 'none',
-                            cursor: 'pointer',
-                            background: 'rgba(253,94,103,0.1)',
-                            fontSize: 14, fontWeight: 500, color: '#FD5E67', whiteSpace: 'nowrap',
+                            flexShrink: 0, padding: '6px 12px', borderRadius: 8, border: 'none',
+                            cursor: 'pointer', background: 'rgba(253,94,103,0.1)',
+                            fontSize: 12, fontWeight: 500, color: '#FD5E67', whiteSpace: 'nowrap',
                           }}
                           onMouseEnter={e => { e.currentTarget.style.background = 'rgba(253,94,103,0.18)'; }}
                           onMouseLeave={e => { e.currentTarget.style.background = 'rgba(253,94,103,0.1)'; }}
@@ -1153,25 +1484,6 @@ export default function MarketDetail() {
                   </div>
                 ))}
               </div>
-
-              {/* link (Figma: layout_WJ1E26 — row, space-between, padding:12px 16px, fill #1B1B1C)
-                  text: fill_B0EITJ #5BD197 | icon: fill_77R2ZH #FFFFFF */}
-              <button
-                style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '12px 16px', background: '#1B1B1C', borderRadius: 8,
-                  border: 'none', cursor: 'pointer', width: '100%', marginTop: 16,
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#252527'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#1B1B1C'; }}
-              >
-                {/* text (layout_NIYQ5I — row, center, gap:8) */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ color: '#FFFFFF', display: 'flex' }}><ExternalLink /></span>
-                  <span style={{ fontSize: 14, fontWeight: 500, color: '#5BD197' }}>View All Orders</span>
-                </div>
-                <span style={{ color: '#FFFFFF', display: 'flex' }}><ChevronRight /></span>
-              </button>
             </div>
 
           </div>{/* end right col */}

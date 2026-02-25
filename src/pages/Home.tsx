@@ -668,11 +668,11 @@ function RecentTradesTable() {
                   onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                 />
               </div>
-              {/* WHALES platform whale icon — from Figma icon-slot (#27C9D8) */}
+              {/* creature icon (whale/shrimp/shark/dolphin/fish) */}
               <div style={{ padding: 2, flexShrink: 0 }}>
                 <img
-                  src="/images/collateral-icon-slot.png"
-                  alt="whales"
+                  src={t.creatureIcon}
+                  alt="creature"
                   style={{ width: 16, height: 16, objectFit: 'contain' }}
                 />
               </div>

@@ -11,6 +11,7 @@ export interface Trade {
   amount: number;
   collateral: number;
   collateralLogo: string;
+  creatureIcon: string;
   time: string;
   txId: string;
   badge?: { initials: string; color: string };
@@ -26,6 +27,7 @@ export const recentTrades: Trade[] = [
     amount: 3640,
     collateral: 200.0,
     collateralLogo: USDC,
+    creatureIcon: '/images/creature-whale.svg',
     time: '1m ago',
     txId: '0x1a2b3c',
   },
@@ -38,6 +40,7 @@ export const recentTrades: Trade[] = [
     amount: 18180,
     collateral: 1000.0,
     collateralLogo: USDC,
+    creatureIcon: '/images/creature-shrimp.svg',
     time: '1m ago',
     txId: '0x4d5e6f',
   },
@@ -50,6 +53,7 @@ export const recentTrades: Trade[] = [
     amount: 4200,
     collateral: 500.0,
     collateralLogo: USDT,
+    creatureIcon: '/images/creature-shark.svg',
     time: '1m ago',
     txId: '0x7a8b9c',
     badge: { initials: 'RS', color: '#EAB308' },
@@ -63,6 +67,7 @@ export const recentTrades: Trade[] = [
     amount: 85350,
     collateral: 3.0,
     collateralLogo: SOL,
+    creatureIcon: '/images/creature-dolphin.svg',
     time: '1m ago',
     txId: '0xd0e1f2',
     badge: { initials: 'RS', color: '#EAB308' },
@@ -76,6 +81,7 @@ export const recentTrades: Trade[] = [
     amount: 3620,
     collateral: 250.0,
     collateralLogo: USDC,
+    creatureIcon: '/images/creature-fish.svg',
     time: '1m ago',
     txId: '0x3a4b5c',
   },
@@ -88,6 +94,7 @@ export const recentTrades: Trade[] = [
     amount: 100000,
     collateral: 500.0,
     collateralLogo: USDC,
+    creatureIcon: '/images/creature-whale.svg',
     time: '1m ago',
     txId: '0x6d7e8f',
   },
@@ -100,6 +107,7 @@ export const recentTrades: Trade[] = [
     amount: 40000,
     collateral: 200.0,
     collateralLogo: USDC,
+    creatureIcon: '/images/creature-shrimp.svg',
     time: '1m ago',
     txId: '0x9a0b1c',
   },
@@ -112,6 +120,7 @@ export const recentTrades: Trade[] = [
     amount: 100000,
     collateral: 500.0,
     collateralLogo: USDC,
+    creatureIcon: '/images/creature-shark.svg',
     time: '1m ago',
     txId: '0x2d3e4f',
   },
@@ -124,6 +133,7 @@ export const recentTrades: Trade[] = [
     amount: 3620,
     collateral: 0.08,
     collateralLogo: USDC,
+    creatureIcon: '/images/creature-dolphin.svg',
     time: '1m ago',
     txId: '0x5a6b7c',
   },
@@ -136,6 +146,7 @@ export const recentTrades: Trade[] = [
     amount: 1820,
     collateral: 100.0,
     collateralLogo: USDC,
+    creatureIcon: '/images/creature-fish.svg',
     time: '1m ago',
     txId: '0x8d9e0f',
   },
