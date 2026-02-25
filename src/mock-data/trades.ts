@@ -1,6 +1,6 @@
-const USDC = 'https://assets.coingecko.com/coins/images/6319/small/usdc.png';
-const USDT = 'https://assets.coingecko.com/coins/images/325/small/Tether.png';
-const SOL  = 'https://assets.coingecko.com/coins/images/4128/small/solana.png';
+const USDC = '/images/logo-usdc.png';
+const USDT = '/images/logo-usdt.png';
+const SOL  = '/images/logo-sol.png';
 
 export interface Trade {
   id: string;
@@ -44,7 +44,7 @@ export const recentTrades: Trade[] = [
   {
     id: '3',
     pair: 'IKA/USDT',
-    pairLogo: 'https://assets.coingecko.com/coins/images/39952/small/ika.png',
+    pairLogo: '/images/logo-ika.png',
     side: 'buy',
     price: 0.119,
     amount: 4200,
@@ -57,7 +57,7 @@ export const recentTrades: Trade[] = [
   {
     id: '4',
     pair: 'PENGU/SOL',
-    pairLogo: 'https://assets.coingecko.com/coins/images/35466/small/pengu.png',
+    pairLogo: '/images/logo-pengu.png',
     side: 'buy',
     price: 0.005,
     amount: 85350,
@@ -70,7 +70,7 @@ export const recentTrades: Trade[] = [
   {
     id: '5',
     pair: 'GRASS/USDC',
-    pairLogo: 'https://assets.coingecko.com/coins/images/35315/small/grass.png',
+    pairLogo: '/images/logo-grass.png',
     side: 'buy',
     price: 0.069,
     amount: 3620,

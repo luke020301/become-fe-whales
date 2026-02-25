@@ -6,6 +6,7 @@ export interface Market {
   name: string;
   logo: string;
   chainLogo: string;
+  network: string;
   price: number;
   priceChange24h: number;
   volume24h: number;
@@ -26,6 +27,7 @@ export const markets: Market[] = [
     name: 'SKATEON',
     logo: '/images/logo-skate-market.png',
     chainLogo: '/images/chain-badge-solana.png',
+    network: 'solana',
     price: 0.31,
     priceChange24h: 9.15,
     volume24h: 5624.18,
@@ -44,6 +46,7 @@ export const markets: Market[] = [
     name: 'Monad',
     logo: '/images/logo-monad.png',
     chainLogo: '/images/chain-badge-2.png',
+    network: 'ethereum',
     price: 0.85,
     priceChange24h: 3.24,
     volume24h: 12480.5,
@@ -62,6 +65,7 @@ export const markets: Market[] = [
     name: 'Hyperliquid',
     logo: '/images/logo-hype.jpg',
     chainLogo: '/images/chain-hyperliquid.png',
+    network: 'hyperliquid',
     price: 12.47,
     priceChange24h: -4.89,
     volume24h: 98432.0,
@@ -80,6 +84,7 @@ export const markets: Market[] = [
     name: 'Story Protocol',
     logo: '/images/logo-story.png',
     chainLogo: '/images/chain-badge-solana.png',
+    network: 'solana',
     price: 0.092,
     priceChange24h: -1.33,
     volume24h: 3241.9,
@@ -98,6 +103,7 @@ export const markets: Market[] = [
     name: 'Abstract',
     logo: '/images/logo-abstract.png',
     chainLogo: '/images/chain-bnb.png',
+    network: 'bnb',
     price: 0.044,
     priceChange24h: -2.67,
     volume24h: 1820.33,
@@ -116,6 +122,7 @@ export const markets: Market[] = [
     name: 'Initia',
     logo: '/images/logo-initia.png',
     chainLogo: '/images/chain-badge-solana.png',
+    network: 'solana',
     price: 1.24,
     priceChange24h: 14.2,
     volume24h: 23491.6,
@@ -134,6 +141,7 @@ export const markets: Market[] = [
     name: 'Sui Network',
     logo: 'https://assets.coingecko.com/coins/images/26375/small/sui_asset.jpeg',
     chainLogo: '/images/chain-badge-solana.png',
+    network: 'solana',
     price: 1.85,
     priceChange24h: 0,
     volume24h: 0,
@@ -152,6 +160,7 @@ export const markets: Market[] = [
     name: 'Sei Network',
     logo: 'https://assets.coingecko.com/coins/images/28205/small/Sei_Logo_-_Transparent.png',
     chainLogo: '/images/chain-badge-solana.png',
+    network: 'solana',
     price: 0.2841,
     priceChange24h: 0,
     volume24h: 0,
@@ -170,6 +179,7 @@ export const markets: Market[] = [
     name: 'Aptos',
     logo: 'https://assets.coingecko.com/coins/images/26455/small/aptos_round.png',
     chainLogo: '/images/chain-badge-solana.png',
+    network: 'solana',
     price: 5.24,
     priceChange24h: 0,
     volume24h: 0,

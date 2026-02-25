@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { markets } from '../mock-data/markets';
 
@@ -33,56 +33,292 @@ const MY_OPEN_ORDERS = [
   { id: '6', side: 'buy',  price: 0.0030, amount: 50000, collateral: 1.5,  collateralSymbol: 'ETH',  time: '1h ago'  },
 ];
 
-/* ─── price chart (SVG line) ─── */
-function PriceChart({ ticker }: { ticker: string }) {
-  const raw = [
-    0.0020, 0.0025, 0.0022, 0.0030, 0.0028, 0.0035, 0.0032, 0.0038, 0.0036,
-    0.0040, 0.0038, 0.0042, 0.0039, 0.0045, 0.0043, 0.0048, 0.0046, 0.0050,
-    0.0048, 0.0045,
-  ];
-  const W = 400; const H = 100;
-  const min = Math.min(...raw) * 0.97;
-  const max = Math.max(...raw) * 1.03;
-  const toX = (i: number) => (i / (raw.length - 1)) * W;
-  const toY = (v: number) => H - ((v - min) / (max - min)) * H;
-  const linePath = raw.map((v, i) => `${i === 0 ? 'M' : 'L'}${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(' ');
-  const areaPath = `${linePath} L${W},${H} L0,${H} Z`;
+/* ─── chart data ─── */
+type ChartPoint = { price: number; volume: number; fullDate: string; shortDate: string };
 
-  // axis labels
-  const ticks = [max, (max + min) / 2, min].map(v => ({ v, y: toY(v) }));
-  const dates = ['15/03', '16/03', '17/03', '18/03', '19/03', '20/03', '21/03'];
+const CHART_DATA: ChartPoint[] = (() => {
+  const prices = [
+    0.0012,0.0015,0.0013,0.0018,0.0016,0.0020,0.0017,0.0022,0.0019,0.0025,
+    0.0022,0.0028,0.0024,0.0030,0.0027,0.0033,0.0029,0.0036,0.0032,0.0038,
+    0.0035,0.0042,0.0038,0.0045,0.0041,0.0048,0.0044,0.0051,0.0046,0.0053,
+    0.0048,0.0050,0.0046,0.0042,0.0039,0.0043,0.0040,0.0044,0.0041,0.0047,
+    0.0043,0.0049,0.0045,0.0048,0.0044,0.0046,0.0042,0.0040,0.0043,0.0047,
+    0.0044,0.0050,0.0046,0.0048,0.0043,0.0045,0.0041,0.0044,0.0042,0.0045,
+  ];
+  const volumes = [
+    12000,8500,15000,9800,22000,6300,18000,11200,7500,14000,
+    9200,19000,8800,23000,7200,16000,10500,21000,8000,17000,
+    11000,20000,9500,24000,7800,15500,12000,18500,9000,22500,
+    6500,17500,10000,23500,7500,16500,11500,21500,8500,19500,
+    6000,14500,9800,25000,7000,18000,10800,22000,8200,16000,
+    11200,20000,9200,24000,7200,15000,10000,21000,8000,19000,
+  ];
+  const start = new Date('2025-03-01T00:00:00Z');
+  return prices.map((price, i) => {
+    const d = new Date(start.getTime() + i * 12 * 3600 * 1000);
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const yyyy = d.getUTCFullYear();
+    const h = d.getUTCHours();
+    const min = String(d.getUTCMinutes()).padStart(2, '0');
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return {
+      price,
+      volume: volumes[i],
+      fullDate: `${dd}/${mm}/${yyyy}, ${h12}:${min} ${ampm}`,
+      shortDate: `${mm}/${dd}`,
+    };
+  });
+})();
+
+/* ─── interactive price chart (Figma: chart ver=02-hover) ─── */
+function PriceChart({
+  ticker,
+  onHoverTime,
+}: {
+  ticker: string;
+  onHoverTime?: (t: string | null) => void;
+}) {
+  const [hover, setHover] = useState<{ dataIdx: number } | null>(null);
+  const graphRef = useRef<HTMLDivElement>(null);
+  const data = CHART_DATA;
+
+  /* SVG viewport */
+  const W = 820; const PH = 240; const VH = 100;
+
+  /* price scale */
+  const prices = data.map(d => d.price);
+  const minP = Math.min(...prices) * 0.95;
+  const maxP = Math.max(...prices) * 1.05;
+  const toX = (i: number) => (i / (data.length - 1)) * W;
+  const toY = (v: number) => PH - ((v - minP) / (maxP - minP)) * PH;
+
+  const linePath = data.map((d, i) => `${i === 0 ? 'M' : 'L'}${toX(i).toFixed(1)},${toY(d.price).toFixed(1)}`).join(' ');
+  const areaPath = `${linePath} L${W},${PH} L0,${PH} Z`;
+
+  const lastIdx  = data.length - 1;
+  const lastPrice = data[lastIdx].price;
+  const lastY     = toY(lastPrice);
+  const lastChange = (lastPrice - data[0].price) / data[0].price * 100;
+
+  /* 5 evenly-spaced Y-axis ticks */
+  const yTicks = Array.from({ length: 5 }, (_, i) => {
+    const v = maxP - (maxP - minP) * (i / 4);
+    return { label: v.toFixed(4), ySvg: toY(v), yPct: (toY(v) / PH) * 100 };
+  });
+
+  /* volume scale */
+  const maxVol = Math.max(...data.map(d => d.volume));
+
+  /* date labels (7 evenly spaced) */
+  const dateLabels = Array.from({ length: 7 }, (_, i) => {
+    const idx = Math.round(i * (data.length - 1) / 6);
+    return { label: data[idx].shortDate };
+  });
+
+  /* crosshair */
+  const hoverPt    = hover ? data[hover.dataIdx] : null;
+  const hoverSvgX  = hover ? toX(hover.dataIdx) : null;
+  const hoverSvgY  = hoverPt ? toY(hoverPt.price) : null;
+  const hoverXPct  = hover ? (hover.dataIdx / (data.length - 1)) * 100 : null;
+  const hoverYPct  = hoverSvgY !== null ? (hoverSvgY / PH) * 100 : null;
+
+  /* last-price pill top% on right axis (accounting for 32px padding) */
+  const lastPillTop = `${((maxP - lastPrice) / (maxP - minP) * (PH - 64) + 32) / PH * 100}%`;
+
+  const TOOLTIP_W = 192;
+
+  function onMouseMove(e: React.MouseEvent) {
+    const g = graphRef.current;
+    if (!g) return;
+    const rect = g.getBoundingClientRect();
+    const relX = e.clientX - rect.left;
+    if (relX < 0 || relX > rect.width) { onMouseLeave(); return; }
+    const idx = Math.min(Math.max(Math.round((relX / rect.width) * (data.length - 1)), 0), data.length - 1);
+    setHover({ dataIdx: idx });
+    onHoverTime?.(data[idx].fullDate);
+  }
+  function onMouseLeave() { setHover(null); onHoverTime?.(null); }
 
   return (
-    <div style={{ position: 'relative', userSelect: 'none' }}>
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="none"
-        style={{ width: '100%', height: 100, display: 'block' }}
-      >
-        <defs>
-          <linearGradient id={`ag-${ticker}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#16C284" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="#16C284" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path d={areaPath} fill={`url(#ag-${ticker})`} />
-        <path d={linePath}  fill="none" stroke="#16C284" strokeWidth="1.5" />
-        {/* last-price dot */}
-        <circle cx={toX(raw.length - 1).toFixed(1)} cy={toY(raw[raw.length - 1]).toFixed(1)} r="3" fill="#16C284" />
-      </svg>
-      {/* axis ticks */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-        {dates.map(d => (
-          <span key={d} style={{ fontSize: 10, color: '#7A7A83' }}>{d}</span>
-        ))}
+    <div onMouseMove={onMouseMove} onMouseLeave={onMouseLeave} style={{ userSelect: 'none' }}>
+
+      {/* ── Price chart-info row ── */}
+      <div style={{ display: 'flex', borderBottom: '1px solid #1B1B1C' }}>
+
+        {/* Left Y-axis: "Price" + 5 ticks */}
+        <div style={{
+          display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+          alignItems: 'center', padding: 16, width: 60, flexShrink: 0,
+          borderRight: '1px solid #1B1B1C', height: PH,
+        }}>
+          <span style={{ fontSize: 10, color: '#7A7A83' }}>Price</span>
+          {yTicks.map((t, i) => (
+            <span key={i} style={{ fontSize: 10, color: '#7A7A83' }}>{t.label}</span>
+          ))}
+        </div>
+
+        {/* Chart graph — fills remaining width */}
+        <div ref={graphRef} style={{ flex: 1, position: 'relative', height: PH }}>
+          <svg viewBox={`0 0 ${W} ${PH}`} preserveAspectRatio="none"
+            style={{ width: '100%', height: '100%', display: 'block' }}>
+            <defs>
+              <linearGradient id={`ag-${ticker}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#16C284" stopOpacity="0.4" />
+                <stop offset="100%" stopColor="#16C284" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            {/* faint grid lines */}
+            {yTicks.map((t, i) => (
+              <line key={i} x1="0" y1={t.ySvg} x2={W} y2={t.ySvg} stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+            ))}
+            {/* area + line */}
+            <path d={areaPath} fill={`url(#ag-${ticker})`} />
+            <path d={linePath} fill="none" stroke="#16C284" strokeWidth="1.5" />
+            {/* last-price dashed horizontal */}
+            <line x1="0" y1={lastY} x2={W} y2={lastY} stroke="#5BD197" strokeWidth="1" strokeDasharray="2 2" />
+            {/* last-price dot */}
+            <circle cx={toX(lastIdx)} cy={lastY} r="8" fill="rgba(22,194,132,0.2)" />
+            <circle cx={toX(lastIdx)} cy={lastY} r="4" fill="#16C284" />
+            {/* crosshair vertical */}
+            {hoverSvgX !== null && (
+              <line x1={hoverSvgX} y1="0" x2={hoverSvgX} y2={PH} stroke="#44444B" strokeWidth="1" strokeDasharray="4 4" />
+            )}
+            {/* crosshair horizontal */}
+            {hoverSvgY !== null && (
+              <line x1="0" y1={hoverSvgY} x2={W} y2={hoverSvgY} stroke="#44444B" strokeWidth="1" strokeDasharray="4 4" />
+            )}
+            {/* crosshair intersection dot */}
+            {hoverSvgX !== null && hoverSvgY !== null && (
+              <circle cx={hoverSvgX} cy={hoverSvgY} r="4" fill="#F9F9FA" stroke="#44444B" strokeWidth="1" />
+            )}
+          </svg>
+
+          {/* Last Price overlay — top-left (Figma: layout_4OI7A6 x:8 y:8) */}
+          <div style={{
+            position: 'absolute', top: 8, left: 8,
+            display: 'flex', gap: 4, pointerEvents: 'none',
+          }}>
+            <span style={{ fontSize: 12, color: '#7A7A83' }}>Last Price</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 12, color: '#F9F9FA' }}>${lastPrice.toFixed(4)}</span>
+              <span style={{ fontSize: 12, color: lastChange >= 0 ? '#5BD197' : '#FD5E67' }}>
+                {lastChange >= 0 ? '+' : ''}{lastChange.toFixed(2)}%
+              </span>
+            </div>
+          </div>
+
+          {/* WhalesMarket watermark — bottom-right */}
+          <div style={{
+            position: 'absolute', bottom: 8, right: 8,
+            opacity: 0.35, pointerEvents: 'none',
+            display: 'flex', alignItems: 'center', gap: 3,
+          }}>
+            <span style={{ fontSize: 9, fontWeight: 600, color: '#F9F9FA', letterSpacing: '0.05em' }}>
+              WHALES MARKET
+            </span>
+          </div>
+
+          {/* Tooltip (Figma: layout_X32J1Z + layout_5CIOC5 — column, center, bg #252527, br:8, w:192) */}
+          {hover && hoverPt && hoverXPct !== null && hoverYPct !== null && (
+            <div style={{
+              position: 'absolute',
+              left: `clamp(0px, calc(${hoverXPct}% - ${TOOLTIP_W / 2}px), calc(100% - ${TOOLTIP_W}px))`,
+              top: `clamp(8px, calc(${hoverYPct}% - 110px), calc(${hoverYPct}% - 8px))`,
+              width: TOOLTIP_W,
+              background: '#252527', borderRadius: 8,
+              padding: '8px 12px', pointerEvents: 'none',
+              boxShadow: '0 0 8px rgba(0,0,0,0.1)', zIndex: 50,
+            }}>
+              {/* datetime — layout_JLOA65: row, border-bottom */}
+              <div style={{ paddingBottom: 8, borderBottom: '1px solid #2E2E34' }}>
+                <span style={{ fontSize: 12, color: '#7A7A83' }}>{hoverPt.fullDate}</span>
+              </div>
+              {/* Price row — layout_6NKOA6: row, fill */}
+              <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
+                <span style={{ fontSize: 12, color: '#7A7A83', flex: 1 }}>Price:</span>
+                <span style={{ fontSize: 12, color: '#F9F9FA' }}>${hoverPt.price.toFixed(4)}</span>
+              </div>
+              {/* Vol row */}
+              <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                <span style={{ fontSize: 12, color: '#7A7A83', flex: 1 }}>Vol:</span>
+                <span style={{ fontSize: 12, color: '#F9F9FA' }}>${fmt(hoverPt.volume)}</span>
+              </div>
+              {/* Arrow */}
+              <svg width="16" height="8" viewBox="0 0 16 8" fill="none"
+                style={{ position: 'absolute', bottom: -8, left: '50%', transform: 'translateX(-50%)' }}>
+                <path d="M0 0 L8 8 L16 0 Z" fill="#252527" />
+              </svg>
+            </div>
+          )}
+        </div>
+
+        {/* Right Y-axis: ticks + last-price pill (Figma: layout_LROX9Z — padding 32px 16px) */}
+        <div style={{
+          display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+          padding: '32px 8px', width: 56, flexShrink: 0, position: 'relative', height: PH,
+        }}>
+          {yTicks.map((t, i) => (
+            <span key={i} style={{ fontSize: 10, color: '#7A7A83' }}>{t.label}</span>
+          ))}
+          {/* Last-price pill — absolutely positioned at lastPrice level */}
+          <div style={{
+            position: 'absolute', left: 4, right: 4, top: lastPillTop,
+            transform: 'translateY(-50%)',
+            background: '#16C284', borderRadius: 4,
+            padding: '2px 4px', textAlign: 'center',
+          }}>
+            <span style={{ fontSize: 10, color: '#F9F9FA', fontWeight: 500 }}>{lastPrice.toFixed(4)}</span>
+          </div>
+        </div>
       </div>
-      {/* y-axis ticks (right) */}
-      <div style={{ position: 'absolute', right: 0, top: 0, height: 100, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', pointerEvents: 'none' }}>
-        {ticks.map(t => (
-          <span key={t.y} style={{ fontSize: 10, color: '#7A7A83', lineHeight: '1' }}>
-            {t.v.toFixed(4)}
-          </span>
-        ))}
+
+      {/* ── Volume chart-info row (Figma: second chart-info) ── */}
+      <div style={{ display: 'flex' }}>
+        {/* Left axis: "Volume" label */}
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', padding: 16,
+          width: 60, flexShrink: 0, borderRight: '1px solid #1B1B1C',
+          height: VH,
+        }}>
+          <span style={{ fontSize: 10, color: '#7A7A83' }}>Volume</span>
+        </div>
+        {/* Volume bars */}
+        <div style={{ flex: 1, height: VH, position: 'relative' }}>
+          <svg viewBox={`0 0 ${W} ${VH}`} preserveAspectRatio="none"
+            style={{ width: '100%', height: '100%', display: 'block' }}>
+            {data.map((d, i) => {
+              const barH = Math.max(2, (d.volume / maxVol) * (VH - 8));
+              const barW = Math.max(1, W / data.length - 1.5);
+              const isDown = i > 0 && d.price < data[i - 1].price;
+              return (
+                <rect key={i}
+                  x={Math.max(0, toX(i) - barW / 2)}
+                  y={VH - barH} width={barW} height={barH}
+                  fill={isDown ? 'rgba(255,59,70,0.2)' : 'rgba(22,194,132,0.2)'}
+                />
+              );
+            })}
+            {/* crosshair vertical in volume */}
+            {hoverSvgX !== null && (
+              <line x1={hoverSvgX} y1="0" x2={hoverSvgX} y2={VH} stroke="#44444B" strokeWidth="1" strokeDasharray="4 4" />
+            )}
+          </svg>
+        </div>
+        {/* Right spacer to align with price chart */}
+        <div style={{ width: 56, flexShrink: 0 }} />
+      </div>
+
+      {/* ── Date labels ── */}
+      <div style={{ display: 'flex', padding: '6px 0' }}>
+        <div style={{ width: 60, flexShrink: 0 }} />
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', padding: '0 8px' }}>
+          {dateLabels.map((d, i) => (
+            <span key={i} style={{ fontSize: 10, color: '#7A7A83' }}>{d.label}</span>
+          ))}
+        </div>
+        <div style={{ width: 56, flexShrink: 0 }} />
       </div>
     </div>
   );
@@ -105,13 +341,38 @@ function StatItem({ label, value, change }: { label: string; value: string; chan
 
 /* ─── icons ─── */
 const ChevronDown = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
     <path d="M7 10l5 5 5-5H7z" />
   </svg>
 );
 const ExternalLink = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
     <path d="M10 6v2H5v11h11v-5h2v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6zm11-3v8h-2V6.413l-7.793 7.794-1.414-1.414L17.585 5H13V3h8z" />
+  </svg>
+);
+const ArrowRightUpIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+    <path d="M7 17L17 7M17 7H7M17 7V17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const UmbrellaIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 1C6.48 1 2 5.48 2 11c0 .55.45 1 1 1h8v8c0 1.1.9 2 2 2s2-.9 2-2v-8h8c.55 0 1-.45 1-1C24 5.48 19.52 1 12 1z" />
+  </svg>
+);
+const PigIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M19 9h-1.17C17.4 6.63 15.29 5 13 5h-2C8.24 5 6 7.24 6 10v4c0 1.86 1.28 3.41 3 3.86V20h2v-2h2v2h2v-2.14C17.72 17.41 19 15.86 19 14v-.17C19.88 13.58 20.5 12.86 20.5 12v-1.5C20.5 9.67 19.83 9 19 9zM9.5 12a1 1 0 1 1 0-2 1 1 0 0 1 0 2z" />
+  </svg>
+);
+const AddFillIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M19 11H13V5h-2v6H5v2h6v6h2v-6h6v-2z" />
+  </svg>
+);
+const ChartLineIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M3.5 18.5L9.5 12.5L13.5 16.5L22 7M22 7H16M22 7V13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
   </svg>
 );
 const SettingsIcon = () => (
@@ -124,28 +385,13 @@ const ClockIcon = () => (
     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm.5 5v5.25l4.5 2.67-.75 1.23L11 13V7h1.5z" />
   </svg>
 );
-const StarIcon = () => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-  </svg>
-);
-const XIcon = () => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.741l7.73-8.835L1.254 2.25H8.08l4.259 5.631zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-  </svg>
-);
-const PlusIcon = () => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M19 11H13V5h-2v6H5v2h6v6h2v-6h6v-2z" />
-  </svg>
-);
 const ChevronRight = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
     <path d="M9.29 6.71a1 1 0 0 0 0 1.41L13.17 12l-3.88 3.88a1 1 0 1 0 1.41 1.41l4.59-4.59a1 1 0 0 0 0-1.41L10.7 6.7a1 1 0 0 0-1.41.01z" />
   </svg>
 );
-const EmptyMascot = () => (
-  <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+const EmptyMascot = ({ size = 56 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 56 56" fill="none">
     <circle cx="28" cy="28" r="24" fill="#252527" />
     <path d="M16 32c0-6.627 5.373-12 12-12s12 5.373 12 12" stroke="#7A7A83" strokeWidth="2" strokeLinecap="round" />
     <circle cx="20" cy="26" r="2.5" fill="#7A7A83" />
@@ -207,6 +453,7 @@ export default function MarketDetail() {
   const [collateral, setCollateral]               = useState('USDC');
   const [fillType, setFillType]                   = useState('All');
   const [orderType, setOrderType]                 = useState('All');
+  const [hoverTime, setHoverTime]                 = useState<string | null>(null);
 
   /* not found */
   if (!market) {
@@ -243,20 +490,21 @@ export default function MarketDetail() {
     fontSize: 13, fontWeight: 500,
   } as React.CSSProperties);
 
+  /* Figma: layout_Z225N1 — secondary/tonal/md button: padding 8px 8px 8px 16px, gap 6, bg #1B1B1C, br:8 */
   const filterBtn = (label: string, value: string, cycle: () => void) => (
     <button
       onClick={cycle}
       style={{
-        display: 'flex', alignItems: 'center', gap: 4,
-        padding: '4px 10px', borderRadius: 8, cursor: 'pointer',
-        background: '#1B1B1C', border: '1px solid #252527',
-        fontSize: 12, fontWeight: 500, color: '#F9F9FA', whiteSpace: 'nowrap',
+        display: 'flex', alignItems: 'center', gap: 6,
+        padding: '8px 8px 8px 16px', borderRadius: 8, cursor: 'pointer',
+        background: '#1B1B1C', border: 'none',
+        fontSize: 14, fontWeight: 500, color: '#F9F9FA', whiteSpace: 'nowrap',
       }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = '#44444B'; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = '#252527'; }}
+      onMouseEnter={e => { e.currentTarget.style.background = '#252527'; }}
+      onMouseLeave={e => { e.currentTarget.style.background = '#1B1B1C'; }}
     >
       {label}: {value}
-      <span style={{ color: '#7A7A83' }}><ChevronDown /></span>
+      <span style={{ color: '#7A7A83', display: 'flex' }}><ChevronDown /></span>
     </button>
   );
 
@@ -288,91 +536,127 @@ export default function MarketDetail() {
         </div>
 
         {/* ══════════════════════════════════════
-            MARKET HEADER
+            MARKET HEADER  (Figma: market-header-update)
             ══════════════════════════════════════ */}
         <div style={{
-          marginTop: 12, padding: '20px 24px',
-          background: '#1B1B1C', borderRadius: 16, border: '1px solid #252527',
-          display: 'flex', flexDirection: 'column', gap: 16,
+          display: 'flex', alignItems: 'center', gap: 16,
+          padding: '24px 0', borderBottom: '4px solid #1B1B1C',
         }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, flexWrap: 'wrap' }}>
 
-            {/* Token identity */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-              <div style={{ position: 'relative' }}>
+          {/* ── token-info (fills width) ── */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 32, flex: 1, minWidth: 0 }}>
+
+            {/* token: logo + ticker + project name */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              {/* image-slot 44×44 — same structure as Home TokenCell */}
+              <div style={{ position: 'relative', display: 'inline-flex', padding: 4, flexShrink: 0 }}>
                 <img
                   src={market.logo} alt={market.ticker}
-                  style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }}
-                  onError={e => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${market.ticker}&background=252527&color=F9F9FA&size=48`; }}
+                  style={{ width: 44, height: 44, borderRadius: '9999px', objectFit: 'cover' }}
+                  onError={e => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${market.ticker}&background=252527&color=F9F9FA&size=44`; }}
                 />
                 <img
                   src={market.chainLogo} alt="chain"
-                  style={{ position: 'absolute', bottom: -2, right: -2, width: 18, height: 18, borderRadius: '50%', border: '2px solid #1B1B1C', objectFit: 'cover' }}
+                  style={{ position: 'absolute', left: 0, top: 36, width: 16, height: 16, borderRadius: 4, border: '1.5px solid #0A0A0B', objectFit: 'cover' }}
                   onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
                 />
               </div>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 600, color: '#F9F9FA' }}>{market.ticker}</div>
-                <div style={{ fontSize: 12, color: '#7A7A83', marginTop: 2 }}>{market.name}</div>
-              </div>
-            </div>
-
-            {/* Price */}
-            <div style={{ flexShrink: 0 }}>
-              <div style={{ fontSize: 20, fontWeight: 700, color: '#F9F9FA' }}>
-                ${fmt(market.price, market.price < 1 ? 4 : 2)}
-              </div>
-              <div style={{ fontSize: 12, marginTop: 2, color: market.priceChange24h >= 0 ? '#5BD197' : '#FD5E67' }}>
-                {market.priceChange24h >= 0 ? '+' : ''}{market.priceChange24h.toFixed(2)}%
-              </div>
-            </div>
-
-            {/* Stats row */}
-            <div style={{ display: 'flex', gap: 28, flex: 1, flexWrap: 'wrap' }}>
-              <StatItem label="24h Vol." value={`$${fmt(market.volume24h)}`} change={market.volumeChange24h} />
-              <StatItem label="Total Vol." value={`$${fmt(market.openInterest)}`} />
-
-              {/* Countdown / TBA */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ fontSize: 12, color: '#7A7A83' }}>Countdown</span>
-                  <span style={{ color: '#7A7A83', display: 'flex' }}><ClockIcon /></span>
+              {/* token-name: Figma layout_GQXW0K — column, justifyContent center */}
+              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                {/* ticker frame: Figma layout_WLLSHI — row, alignItems center, gap 8 */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontFamily: 'Inter Variable, Inter, sans-serif', fontSize: 18, fontWeight: 500, lineHeight: '28px', color: '#F9F9FA' }}>
+                    {market.ticker}
+                  </span>
                 </div>
-                {isTBA ? (
-                  <div style={{ position: 'relative', display: 'inline-flex' }}>
-                    <span
-                      onMouseEnter={() => setShowTbaTooltip(true)}
-                      onMouseLeave={() => setShowTbaTooltip(false)}
-                      style={{
-                        display: 'inline-flex', alignItems: 'center',
-                        padding: '2px 10px', borderRadius: 9999,
-                        background: '#252527', color: '#7A7A83',
-                        fontSize: 11, fontWeight: 600, cursor: 'default', userSelect: 'none',
-                        letterSpacing: '0.04em',
-                      }}
-                    >
-                      TBA
-                    </span>
+                {/* stat-data (project name): Figma layout_189359 — row, center, padding 2px 0 */}
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '2px 0' }}>
+                  <span style={{ fontFamily: 'Inter Variable, Inter, sans-serif', fontSize: 12, fontWeight: 400, lineHeight: '16px', color: '#7A7A83' }}>
+                    {market.name}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* price — Figma layout_9SUBJT: column, hug */}
+            <div style={{ display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+              {/* price text: text-label-lg — 18px 500 */}
+              <span style={{ fontSize: 18, fontWeight: 500, lineHeight: '28px', color: '#F9F9FA' }}>
+                ${fmt(market.price, market.price < 1 ? 4 : 2)}
+              </span>
+              {/* stat-data: row, padding 2px 0 */}
+              <div style={{ display: 'flex', alignItems: 'center', padding: '2px 0' }}>
+                <span style={{ fontSize: 12, fontWeight: 400, lineHeight: '16px', color: market.priceChange24h >= 0 ? '#5BD197' : '#FD5E67' }}>
+                  {market.priceChange24h >= 0 ? '+' : ''}{market.priceChange24h.toFixed(2)}%
+                </span>
+              </div>
+            </div>
+
+            {/* stats — Figma: row, alignItems center, gap 32px */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
+
+              {/* stat-item: 24h Vol. */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {/* label */}
+                <div style={{ display: 'flex', flexDirection: 'column', padding: '6px 0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, fontWeight: 400, color: '#7A7A83', whiteSpace: 'nowrap' }}>24h Vol.</span>
+                  </div>
+                </div>
+                {/* stat-data */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 0' }}>
+                  <span style={{ fontSize: 12, fontWeight: 400, color: '#F9F9FA' }}>${fmt(market.volume24h)}</span>
+                  <span style={{ fontSize: 12, fontWeight: 400, color: '#5BD197' }}>+{market.volumeChange24h?.toFixed(2) ?? '0.00'}%</span>
+                </div>
+              </div>
+
+              {/* stat-item: Total Vol. */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {/* label */}
+                <div style={{ display: 'flex', flexDirection: 'column', padding: '6px 0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, fontWeight: 400, color: '#7A7A83', whiteSpace: 'nowrap' }}>Total Vol.</span>
+                  </div>
+                </div>
+                {/* stat-data */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 0' }}>
+                  <span style={{ fontSize: 12, fontWeight: 400, color: '#F9F9FA' }}>${fmt(market.openInterest)}</span>
+                </div>
+              </div>
+
+              {/* stat-item: Countdown */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {/* label: column, center, padding 6px 0 */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '6px 0' }}>
+                  {/* label-content: hover "Countdown" text → show tooltip */}
+                  <div
+                    style={{
+                      display: 'flex', justifyContent: 'center', alignItems: 'center',
+                      borderBottom: '1px dashed #2E2E34', cursor: 'default', position: 'relative',
+                    }}
+                    onMouseEnter={() => setShowTbaTooltip(true)}
+                    onMouseLeave={() => setShowTbaTooltip(false)}
+                  >
+                    <span style={{ fontSize: 12, fontWeight: 400, color: '#7A7A83', whiteSpace: 'nowrap' }}>Countdown</span>
                     {showTbaTooltip && (
                       <div style={{
                         position: 'absolute', bottom: 'calc(100% + 10px)', left: 0,
                         zIndex: 200, background: '#252527', borderRadius: 8,
-                        padding: '10px 14px', minWidth: 170,
-                        boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                        padding: '8px 12px', width: 240,
+                        boxShadow: '0 0 8px 0 rgba(0,0,0,0.1)',
                         pointerEvents: 'none',
                       }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                           {[
                             { label: 'Start Date', val: 'TBA' },
                             { label: 'Time (UTC)', val: 'TBA' },
                           ].map(row => (
-                            <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', gap: 20, alignItems: 'center' }}>
+                            <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'center' }}>
                               <span style={{ fontSize: 12, color: '#7A7A83' }}>{row.label}</span>
-                              <span style={{ fontSize: 12, color: '#F9F9FA', fontWeight: 500 }}>{row.val}</span>
+                              <span style={{ fontSize: 12, color: '#F9F9FA' }}>{row.val}</span>
                             </div>
                           ))}
                         </div>
-                        {/* tooltip arrow */}
                         <svg width="16" height="8" viewBox="0 0 16 8" fill="none"
                           style={{ position: 'absolute', bottom: -8, left: 12 }}>
                           <path d="M0 0 L8 8 L16 0 Z" fill="#252527" />
@@ -380,330 +664,354 @@ export default function MarketDetail() {
                       </div>
                     )}
                   </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontSize: 12, color: '#F9F9FA', fontWeight: 500 }}>{market.settlementDate}</span>
-                    <span style={{ fontSize: 11, color: '#7A7A83' }}>{market.settlementTime} UTC</span>
-                  </div>
-                )}
+                </div>
+                {/* stat-data: row, center, gap 4, NO padding */}
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4 }}>
+                  {isTBA ? (
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center',
+                      padding: '4px 8px', borderRadius: 9999,
+                      background: '#1B1B1C', color: '#7A7A83',
+                      fontSize: 10, fontWeight: 500, userSelect: 'none',
+                      letterSpacing: '0.04em', textTransform: 'uppercase',
+                    }}>
+                      TBA
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 12, fontWeight: 400, color: '#F9F9FA' }}>
+                      {market.settlementDate}{market.settlementTime && (' · ' + market.settlementTime + ' UTC')}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
+          </div>
 
-            {/* Action buttons */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
-              {/* About */}
-              <button
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '6px 12px', borderRadius: 8, cursor: 'pointer',
-                  background: 'transparent', border: '1px solid #252527',
-                  fontSize: 13, fontWeight: 500, color: '#F9F9FA',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = '#44444B'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = '#252527'; }}
-              >
-                About {market.ticker}
-                <span style={{ color: '#7A7A83', display: 'flex' }}><ExternalLink /></span>
-              </button>
+          {/* ── buttons (right-aligned, Figma: alignSelf stretch) ── */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
 
-              {/* Twitter/X icon button */}
-              <button
-                style={{
-                  width: 32, height: 32, borderRadius: 8, cursor: 'pointer',
-                  background: 'transparent', border: '1px solid #252527',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7A7A83',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = '#44444B'; e.currentTarget.style.color = '#F9F9FA'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = '#252527'; e.currentTarget.style.color = '#7A7A83'; }}
-              >
-                <XIcon />
-              </button>
+            {/* social group */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
 
-              {/* Airdrop Checker – purple→green gradient border */}
-              <button
-                style={{
-                  ...gradBtn('linear-gradient(135deg,#9945FF,#19FB9B)'),
-                  color: '#F9F9FA',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.opacity = '0.85'; }}
-                onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style={{ color: '#B4B4BA' }}>
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-                </svg>
-                Airdrop Checker
-              </button>
+              {/* "About SKATE" grouped button (text + chevron) */}
+              <div style={{ display: 'flex', border: '1px solid #252527', borderRadius: 8, overflow: 'hidden' }}>
+                {/* About text + arrow-right-up icon */}
+                <button
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '8px 8px 8px 16px', cursor: 'pointer',
+                    background: 'transparent', border: 'none', borderRight: '1px solid #252527',
+                    fontSize: 14, fontWeight: 500, lineHeight: '20px',
+                    color: '#F9F9FA', whiteSpace: 'nowrap',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(249,249,250,0.04)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                >
+                  About {market.ticker}
+                  <span style={{ color: '#F9F9FA', display: 'flex' }}><ArrowRightUpIcon /></span>
+                </button>
+                {/* Dropdown chevron (icon-only) */}
+                <button
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: '8px', cursor: 'pointer',
+                    background: 'transparent', border: 'none',
+                    color: '#7A7A83',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(249,249,250,0.04)'; e.currentTarget.style.color = '#F9F9FA'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#7A7A83'; }}
+                >
+                  <ChevronDown />
+                </button>
+              </div>
 
-              {/* Earn 50% Fee – orange gradient border */}
-              <button
-                style={{
-                  ...gradBtn('linear-gradient(135deg,#FB923C,#F59E0B)'),
-                  color: '#FB923C',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.opacity = '0.85'; }}
-                onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
-              >
-                <StarIcon />
-                Earn 50% Fee
-              </button>
-
-              {/* divider */}
-              <div style={{ width: 1, height: 24, background: '#252527', flexShrink: 0 }} />
-
-              {/* Create Order – primary CTA */}
-              <button
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '8px 16px', borderRadius: 8, cursor: 'pointer',
-                  background: '#19FB9B', border: 'none',
-                  fontSize: 13, fontWeight: 600, color: '#0A0A0B',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#10d882'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#19FB9B'; }}
-              >
-                <PlusIcon />
-                Create Order
-              </button>
             </div>
+
+            {/* divider — vertical 16px */}
+            <div style={{ width: 2, height: 16, background: '#252527', flexShrink: 0 }} />
+
+            {/* Create Order — filled white button */}
+            <button
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                height: 36, padding: '8px 16px 8px 8px', borderRadius: 8, cursor: 'pointer',
+                background: '#F9F9FA', border: 'none',
+                fontSize: 14, fontWeight: 500, lineHeight: '20px',
+                color: '#0A0A0B', whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#E5E5E6'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#F9F9FA'; }}
+            >
+              <AddFillIcon />
+              Create Order
+            </button>
           </div>
         </div>
 
         {/* ══════════════════════════════════════
             MAIN 2-COL LAYOUT
             ══════════════════════════════════════ */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16, marginTop: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 384px', gap: 16, marginTop: 16 }}>
 
-          {/* ───────────────────────────────────
-              LEFT: Order book + Chart
-              ─────────────────────────────────── */}
-          <div style={{ background: '#1B1B1C', borderRadius: 16, border: '1px solid #252527', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {/* ═══════════════════════════════════════
+              LEFT: market frame (Figma: 37315-160537)
+              column, gap:16, padding:16px 0px
+              ═══════════════════════════════════════ */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            {/* Header: Trading Market + filters */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid #252527', flexWrap: 'wrap', gap: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 15, fontWeight: 600, color: '#F9F9FA' }}>Trading Market</span>
+            {/* ── block-title (Figma: layout_R255GA — row, space-between, center, gap:8) ── */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              {/* title: column, gap:4 */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: 18, fontWeight: 500, color: '#F9F9FA' }}>Trading Market</span>
                 <a
                   href="#" onClick={e => e.preventDefault()}
-                  style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#7A7A83', textDecoration: 'none' }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 2,
+                    fontSize: 12, color: '#7A7A83', textDecoration: 'none',
+                    borderBottom: '1px solid #252527', paddingBottom: 1,
+                  }}
                   onMouseEnter={e => { e.currentTarget.style.color = '#F9F9FA'; }}
                   onMouseLeave={e => { e.currentTarget.style.color = '#7A7A83'; }}
                 >
                   How it work? <ExternalLink />
                 </a>
               </div>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              {/* buttons: row, gap:8 (Figma: layout_17I9IR) */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 {filterBtn('Collateral', collateral, () => setCollateral(c => c === 'USDC' ? 'USDT' : 'USDC'))}
-                {filterBtn('Fill', fillType,     () => setFillType(v => v === 'All' ? 'Partial' : 'All'))}
-                {filterBtn('Order', orderType,   () => setOrderType(v => v === 'All' ? 'Limit' : 'All'))}
+                {filterBtn('Fill', fillType, () => setFillType(v => v === 'All' ? 'Partial' : 'All'))}
+                {filterBtn('Order', orderType, () => setOrderType(v => v === 'All' ? 'Limit' : 'All'))}
+                {/* icon-only chart button (Figma: layout_U09NN2 — padding:8) */}
                 <button
                   style={{
-                    width: 30, height: 30, borderRadius: 8, cursor: 'pointer',
-                    background: 'transparent', border: '1px solid #252527',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7A7A83',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: 8, borderRadius: 8, cursor: 'pointer',
+                    background: '#1B1B1C', border: 'none', color: '#7A7A83',
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#44444B'; e.currentTarget.style.color = '#F9F9FA'; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#252527'; e.currentTarget.style.color = '#7A7A83'; }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#252527'; e.currentTarget.style.color = '#F9F9FA'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#1B1B1C'; e.currentTarget.style.color = '#7A7A83'; }}
                 >
-                  <SettingsIcon />
+                  <ChartLineIcon />
                 </button>
               </div>
             </div>
 
-            {/* Order book column headers */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '8px 20px', borderBottom: '1px solid #1B1B1C' }}>
-              <span style={{ fontSize: 11, color: '#7A7A83' }}>Price ({collateral})</span>
-              <span style={{ fontSize: 11, color: '#7A7A83', textAlign: 'right' }}>Amount ({market.ticker})</span>
-              <span style={{ fontSize: 11, color: '#7A7A83', textAlign: 'right' }}>Collateral ({collateral})</span>
-            </div>
+            {/* ── chart card (Figma: layout_8CQU2J — column, border:1px #1B1B1C, br:8) ── */}
+            <div style={{ border: '1px solid #1B1B1C', borderRadius: 8, overflow: 'hidden' }}>
 
-            {/* Sell orders */}
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {SELL_ORDERS.map(order => (
-                <OrderRow
-                  key={order.id}
-                  order={order}
-                  side="sell"
-                  maxCol={maxSell}
-                  isSelected={selectedOrder?.id === order.id}
-                  onSelect={() => selectOrder(order, 'sell')}
-                />
-              ))}
-            </div>
-
-            {/* Spread row */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '8px 20px', borderTop: '1px solid #252527', borderBottom: '1px solid #252527',
-            }}>
-              <span style={{ fontSize: 15, fontWeight: 700, color: '#F9F9FA' }}>
-                ${fmt(market.price, 4)}
-              </span>
-              <span style={{ fontSize: 12, color: market.priceChange24h >= 0 ? '#5BD197' : '#FD5E67' }}>
-                {market.priceChange24h >= 0 ? '+' : ''}{market.priceChange24h.toFixed(2)}%
-              </span>
-            </div>
-
-            {/* Buy orders */}
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {BUY_ORDERS.map(order => (
-                <OrderRow
-                  key={order.id}
-                  order={order}
-                  side="buy"
-                  maxCol={maxBuy}
-                  isSelected={selectedOrder?.id === order.id}
-                  onSelect={() => selectOrder(order, 'buy')}
-                />
-              ))}
-            </div>
-
-            {/* Price Chart */}
-            <div style={{ borderTop: '1px solid #252527', flex: 1 }}>
-              {/* Chart controls */}
+              {/* time bar (Figma: layout_O4P10O — row, center, gap:12, padding:8px 16px 8px 8px) */}
               <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '8px 16px', borderBottom: '1px solid #252527',
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '8px 16px 8px 8px', borderBottom: '1px solid #1B1B1C',
               }}>
-                <div style={{ display: 'flex', gap: 2 }}>
+                {/* time-range: 1d / 7d / 30d (Figma: layout_604108 — row, gap:4) */}
+                <div style={{ display: 'flex', gap: 4 }}>
                   {['1d', '7d', '30d'].map(r => (
-                    <button
-                      key={r} onClick={() => setTimeRange(r)}
-                      style={{
-                        padding: '3px 8px', borderRadius: 4, border: 'none', cursor: 'pointer',
-                        background: timeRange === r ? '#252527' : 'transparent',
-                        color: timeRange === r ? '#F9F9FA' : '#7A7A83',
-                        fontSize: 12, fontWeight: 500,
-                      }}
-                    >{r}</button>
+                    <button key={r} onClick={() => setTimeRange(r)} style={{
+                      padding: '2px 8px', borderRadius: 4, border: 'none', cursor: 'pointer',
+                      background: timeRange === r ? '#1B1B1C' : 'transparent',
+                      color: timeRange === r ? '#F9F9FA' : '#7A7A83',
+                      fontSize: 12, fontWeight: 500,
+                    }}>{r}</button>
                   ))}
                 </div>
-                <div style={{ display: 'flex', gap: 2 }}>
+                {/* divider (Figma: layout_Y7UOKT — line, fill height) */}
+                <div style={{ width: 1, alignSelf: 'stretch', background: '#1B1B1C', flexShrink: 0 }} />
+                {/* type: Price / FDV (Figma: layout_0IYV8T — row, gap:4, fill) */}
+                <div style={{ display: 'flex', gap: 4, flex: 1 }}>
                   {['Price', 'FDV'].map(t => (
-                    <button
-                      key={t} onClick={() => setChartType(t)}
-                      style={{
-                        padding: '3px 8px', borderRadius: 4, border: 'none', cursor: 'pointer',
-                        background: chartType === t ? '#252527' : 'transparent',
-                        color: chartType === t ? '#F9F9FA' : '#7A7A83',
-                        fontSize: 12, fontWeight: 500,
-                      }}
-                    >{t}</button>
+                    <button key={t} onClick={() => setChartType(t)} style={{
+                      padding: '2px 8px', borderRadius: 4, border: 'none', cursor: 'pointer',
+                      background: chartType === t ? '#1B1B1C' : 'transparent',
+                      color: chartType === t ? '#F9F9FA' : '#7A7A83',
+                      fontSize: 12, fontWeight: 500,
+                    }}>{t}</button>
                   ))}
                 </div>
+                {/* hovered time display (Figma: layout_NVIIB0 — row, gap:4) */}
+                {hoverTime && (
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                    <span style={{ fontSize: 12, color: '#7A7A83' }}>Time</span>
+                    <span style={{ fontSize: 12, color: '#F9F9FA' }}>{hoverTime}</span>
+                  </div>
+                )}
               </div>
-              <div style={{ padding: '12px 20px 16px 12px' }}>
-                <PriceChart ticker={market.ticker} />
+
+              {/* interactive chart */}
+              <PriceChart ticker={market.ticker} onHoverTime={setHoverTime} />
+            </div>
+
+            {/* ── market-detail: order book (Figma: layout_SBRYFB — column, gap:2) ── */}
+            <div style={{ border: '1px solid #252527', borderRadius: 8, overflow: 'hidden' }}>
+              {/* Order book column headers (Figma: layout_XEET2H — row, padding:0px 8px) */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '8px 20px', borderBottom: '1px solid #1B1B1C' }}>
+                <span style={{ fontSize: 11, color: '#7A7A83' }}>Price ({collateral})</span>
+                <span style={{ fontSize: 11, color: '#7A7A83', textAlign: 'right' }}>Amount ({market.ticker})</span>
+                <span style={{ fontSize: 11, color: '#7A7A83', textAlign: 'right' }}>Collateral ({collateral})</span>
+              </div>
+              {/* Sell orders */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {SELL_ORDERS.map(order => (
+                  <OrderRow key={order.id} order={order} side="sell" maxCol={maxSell}
+                    isSelected={selectedOrder?.id === order.id}
+                    onSelect={() => selectOrder(order, 'sell')} />
+                ))}
+              </div>
+              {/* Spread row */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 20px', borderTop: '1px solid #252527', borderBottom: '1px solid #252527' }}>
+                <span style={{ fontSize: 15, fontWeight: 700, color: '#F9F9FA' }}>${fmt(market.price, 4)}</span>
+                <span style={{ fontSize: 12, color: market.priceChange24h >= 0 ? '#5BD197' : '#FD5E67' }}>
+                  {market.priceChange24h >= 0 ? '+' : ''}{market.priceChange24h.toFixed(2)}%
+                </span>
+              </div>
+              {/* Buy orders */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {BUY_ORDERS.map(order => (
+                  <OrderRow key={order.id} order={order} side="buy" maxCol={maxBuy}
+                    isSelected={selectedOrder?.id === order.id}
+                    onSelect={() => selectOrder(order, 'buy')} />
+                ))}
               </div>
             </div>
           </div>
 
-          {/* ───────────────────────────────────
-              RIGHT: Trade Panel + My Orders
-              ─────────────────────────────────── */}
+          {/* ═══════════════════════════════════════
+              RIGHT: trade+chart (Figma: 37222-132673)
+              column, gap:16, padding:16px 0px
+              ═══════════════════════════════════════ */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            {/* ── Trade Panel ── */}
-            <div style={{ background: '#1B1B1C', borderRadius: 16, border: '1px solid #252527', overflow: 'hidden' }}>
+            {/* ── trade-panel (Figma: layout_Y4KCU5 — column, center, gap:16, pb:24, w:384)
+                fills: #0A0A0B | strokes: border-bottom 4px #1B1B1C ── */}
+            <div style={{
+              background: '#0A0A0B',
+              borderBottom: '4px solid #1B1B1C',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+              paddingBottom: 24,
+            }}>
 
-              {/* Trade header */}
-              <div style={{ padding: '14px 18px', borderBottom: '1px solid #252527' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 15, fontWeight: 600, color: '#F9F9FA' }}>Trade {market.ticker}</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {/* block-title (Figma: layout_051I26 — row, stretch) */}
+              <div style={{ display: 'flex', alignSelf: 'stretch', padding: '16px 16px 0' }}>
+                {/* title (layout_KCYZYH — column, center, gap:4, fill) */}
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4, flex: 1 }}>
+                  {/* token (layout_YWO9IS — row, center, gap:8, hug) */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 18, fontWeight: 500, color: '#F9F9FA' }}>
+                      Trade {market.ticker}
+                    </span>
+                  </div>
+                  {/* price (layout_YIU0YL — row, center, gap:2, hug) */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     <span style={{ fontSize: 12, color: '#7A7A83' }}>Price</span>
-                    <span style={{ fontSize: 12, color: '#F9F9FA', fontWeight: 500 }}>
-                      ${fmt(market.price, 4)}
+                    <span style={{ fontSize: 12, color: selectedOrder ? '#F9F9FA' : '#7A7A83' }}>
+                      {selectedOrder ? ('$' + selectedOrder.price.toFixed(4)) : '-'}
                     </span>
                   </div>
                 </div>
               </div>
 
+              {/* trade-form (Figma: layout_TCBDAZ — column, center, padding:32, h:216, stroke:1px #1B1B1C) */}
               {selectedOrder && selectedSide ? (
-                /* order selected */
-                <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  {/* buy/sell indicator */}
+                /* ── Order selected state ── */
+                <div style={{
+                  display: 'flex', flexDirection: 'column', justifyContent: 'center',
+                  alignSelf: 'stretch', padding: 32, minHeight: 216,
+                  border: '1px solid #1B1B1C', gap: 16,
+                }}>
+                  {/* buy / sell toggle */}
                   <div style={{ display: 'flex', gap: 8 }}>
                     {(['buy', 'sell'] as const).map(s => {
                       const active = selectedSide === s;
                       const col = s === 'buy' ? '#5BD197' : '#FD5E67';
                       const bg  = s === 'buy' ? 'rgba(22,194,132,0.1)' : 'rgba(253,94,103,0.1)';
-                      const br  = s === 'buy' ? 'rgba(22,194,132,0.3)' : 'rgba(253,94,103,0.3)';
+                      const bdr = s === 'buy' ? 'rgba(22,194,132,0.3)' : 'rgba(253,94,103,0.3)';
                       return (
                         <div key={s} style={{
                           flex: 1, padding: '8px', borderRadius: 8, textAlign: 'center',
                           background: active ? bg : 'transparent',
-                          border: `1px solid ${active ? br : '#252527'}`,
+                          border: '1px solid ' + (active ? bdr : '#252527'),
                           color: active ? col : '#7A7A83',
-                          fontSize: 13, fontWeight: 500, textTransform: 'capitalize',
+                          fontSize: 14, fontWeight: 500, textTransform: 'capitalize',
                         }}>
-                          {s}
+                          {s === 'buy' ? 'Buy' : 'Sell'}
                         </div>
                       );
                     })}
                   </div>
-
-                  {/* order details */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {[
-                      { label: 'Price',           value: `$${selectedOrder.price.toFixed(4)} ${collateral}` },
-                      { label: 'Amount Deliver',   value: `${selectedOrder.amount.toLocaleString()} ${market.ticker}` },
-                      { label: 'To be Received',   value: `$${selectedOrder.collateral.toFixed(2)} ${collateral}` },
-                    ].map(row => (
-                      <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 13, color: '#7A7A83' }}>{row.label}</span>
-                        <span style={{ fontSize: 13, fontWeight: 500, color: '#F9F9FA' }}>{row.value}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* trade button */}
-                  <button
-                    style={{
-                      width: '100%', padding: '12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                      background: selectedSide === 'buy' ? '#16C284' : '#FD5E67',
-                      fontSize: 14, fontWeight: 600,
-                      color: selectedSide === 'buy' ? '#0A0A0B' : '#F9F9FA',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.opacity = '0.88'; }}
-                    onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
-                  >
-                    Trade {market.ticker}
-                  </button>
                 </div>
               ) : (
-                /* empty state */
-                <div style={{ padding: '36px 18px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                  <EmptyMascot />
+                /* ── Empty state: mascot 96×96 (Figma: layout_NP1Q25 — 96×96) ── */
+                <div style={{
+                  display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center',
+                  alignSelf: 'stretch', padding: 32, height: 216,
+                  border: '1px solid #1B1B1C', gap: 12,
+                }}>
+                  <EmptyMascot size={96} />
                   <p style={{ fontSize: 12, color: '#7A7A83', textAlign: 'center', margin: 0, lineHeight: '1.6' }}>
                     No order selected yet.<br />Pick one from the list to start trading.
                   </p>
-                  <button disabled style={{
-                    width: '100%', padding: '12px', borderRadius: 10, border: 'none',
-                    background: 'rgba(249,249,250,0.08)',
-                    fontSize: 14, fontWeight: 600, color: '#F9F9FA', opacity: 0.4, cursor: 'not-allowed',
-                  }}>
-                    Trade {market.ticker}
-                  </button>
                 </div>
               )}
 
-              {/* order summary (always visible when no order selected) */}
-              {!selectedOrder && (
-                <div style={{ padding: '12px 18px', borderTop: '1px solid #252527', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {['Price', 'Amount Deliver', 'To be Received'].map(label => (
-                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 12, color: '#7A7A83' }}>{label}</span>
-                      <span style={{ fontSize: 13, fontWeight: 500, color: '#F9F9FA' }}>-</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {/* buttons (Figma: layout_U0BBSN — row, stretch, gap:8, fill)
+                  button: secondary/filled/lg — padding:10px 20px, br:8
+                  disabled: opacity 0.4, bg #F9F9FA, text #0A0A0B */}
+              <div style={{ display: 'flex', alignSelf: 'stretch', gap: 8, padding: '0 16px' }}>
+                <button
+                  disabled={!selectedOrder}
+                  style={{
+                    flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center',
+                    gap: 8, padding: '10px 20px', borderRadius: 8, border: 'none',
+                    cursor: selectedOrder ? 'pointer' : 'not-allowed',
+                    background: selectedOrder
+                      ? (selectedSide === 'buy' ? '#16C284' : '#FD5E67')
+                      : '#F9F9FA',
+                    fontSize: 14, fontWeight: 500,
+                    color: '#0A0A0B',
+                    opacity: selectedOrder ? 1 : 0.4,
+                    transition: 'opacity 0.15s',
+                  }}
+                  onMouseEnter={e => { if (selectedOrder) e.currentTarget.style.opacity = '0.88'; }}
+                  onMouseLeave={e => { e.currentTarget.style.opacity = selectedOrder ? '1' : '0.4'; }}
+                >
+                  Trade {market.ticker}
+                </button>
+              </div>
+
+              {/* oder-info-group (Figma: layout_KNCXKG — column, gap:8, fill)
+                  offer-info-item label: bottom-dashed border #2E2E34 (stroke_U615P2) */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignSelf: 'stretch', gap: 8, padding: '0 16px' }}>
+                {[
+                  { label: 'Price',          value: selectedOrder ? ('$' + selectedOrder.price.toFixed(4) + ' ' + collateral) : '-' },
+                  { label: 'Amount Deliver', value: selectedOrder ? (selectedOrder.amount.toLocaleString() + ' ' + market.ticker) : '-' },
+                  { label: 'To be Received', value: selectedOrder ? ('$' + selectedOrder.collateral.toFixed(2) + ' ' + collateral) : '-' },
+                ].map(row => (
+                  /* oder-info (layout_Y7TI48 — row, space-between, center, gap:16) */
+                  <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
+                    {/* offer-info-item left (layout_ZT3SBO) + stroke_U615P2 = dashed bottom border */}
+                    <span style={{
+                      fontSize: 12, color: '#7A7A83',
+                      borderBottom: '1px dashed #2E2E34', paddingBottom: 2,
+                    }}>
+                      {row.label}
+                    </span>
+                    {/* offer-info-item right (layout_ZT3SBO, no stroke) */}
+                    <span style={{ fontSize: 14, fontWeight: 500, color: '#F9F9FA' }}>
+                      {row.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {/* ── My Orders ── */}
-            <div style={{ background: '#1B1B1C', borderRadius: 16, border: '1px solid #252527', overflow: 'hidden' }}>
-              {/* Tabs */}
-              <div style={{ display: 'flex', borderBottom: '1px solid #252527' }}>
+            {/* ── my-orders (Figma: layout_CO3905 — column, gap:16, fill) ── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+              {/* tab (Figma: layout_8EFV42 — row, gap:24, 384×52)
+                  active: fill_B0EITJ #5BD197 indicator, fill_1P3MUN #F9F9FA text
+                  inactive: fill_B6YLG1 #7A7A83 text, fill_XY3AGF #1B1B1C badge */}
+              <div style={{ display: 'flex', height: 52, borderBottom: '1px solid #1B1B1C' }}>
                 {[
                   { key: 'filled' as const, label: 'My Filled Orders', count: MY_FILLED_ORDERS.length },
                   { key: 'open'   as const, label: 'My Open Orders',   count: MY_OPEN_ORDERS.length   },
@@ -714,71 +1022,122 @@ export default function MarketDetail() {
                       key={tab.key}
                       onClick={() => setActiveTab(tab.key)}
                       style={{
-                        flex: 1, padding: '11px 8px', border: 'none', cursor: 'pointer',
-                        background: 'transparent',
-                        borderBottom: active ? '2px solid #5BD197' : '2px solid transparent',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                        color: active ? '#F9F9FA' : '#7A7A83',
-                        fontSize: 12, fontWeight: 500, transition: 'all 0.15s',
+                        flex: 1, display: 'flex', flexDirection: 'column',
+                        justifyContent: 'space-between', alignItems: 'center',
+                        padding: '8px 0', background: 'transparent', border: 'none', cursor: 'pointer',
                       }}
                     >
-                      {tab.label}
-                      <span style={{
-                        padding: '1px 6px', borderRadius: 9999,
-                        background: active ? 'rgba(91,209,151,0.15)' : '#252527',
-                        color: active ? '#5BD197' : '#7A7A83',
-                        fontSize: 10, fontWeight: 700,
-                      }}>
-                        {tab.count}
-                      </span>
+                      {/* top indicator (inactive = transparent, 16×2 px) */}
+                      <div style={{ width: 16, height: 2 }} />
+                      {/* tab-label (layout_YWO9IS — row, center, gap:8) */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 14, fontWeight: 500, color: active ? '#F9F9FA' : '#7A7A83', whiteSpace: 'nowrap' }}>
+                          {tab.label}
+                        </span>
+                        {/* whales-badge (layout_DFI7E4 — padding:4px 8px, br:9999) */}
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          padding: '4px 8px', borderRadius: 9999,
+                          background: active ? 'rgba(22,194,132,0.1)' : '#1B1B1C',
+                          color: active ? '#5BD197' : '#B4B4BA',
+                          fontSize: 10, fontWeight: 700,
+                        }}>
+                          {tab.count}
+                        </span>
+                      </div>
+                      {/* bottom active-indicator (fill) */}
+                      <div style={{ height: 2, alignSelf: 'stretch', background: active ? '#5BD197' : 'transparent' }} />
                     </button>
                   );
                 })}
               </div>
 
-              {/* Order rows */}
-              <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 280, overflowY: 'auto' }}>
+              {/* order-list (layout_CO3905 — column, fill) */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {currentOrders.length === 0 ? (
                   <div style={{ padding: '28px 16px', textAlign: 'center' }}>
                     <p style={{ fontSize: 12, color: '#7A7A83', margin: 0 }}>No orders yet</p>
                   </div>
                 ) : currentOrders.map(order => (
+                  /* myorder-item (layout_UY2DN8 — column, gap:12, pb:16, stroke_OLHN3B = bottom 1px #1B1B1C) */
                   <div
                     key={order.id}
                     style={{
-                      padding: '12px 16px', borderBottom: '1px solid #252527',
-                      display: 'flex', flexDirection: 'column', gap: 8,
+                      display: 'flex', flexDirection: 'column', gap: 12,
+                      padding: '16px 0', borderBottom: '1px solid #1B1B1C',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {/* Column (layout_J4B4M5 — row, space-between, center, fill) */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      {/* Row (layout_FIYZ01 — row, gap:4) */}
+                      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                        {/* side color text */}
                         <span style={{
-                          padding: '2px 7px', borderRadius: 4,
-                          background: order.side === 'buy' ? 'rgba(22,194,132,0.1)' : 'rgba(253,94,103,0.1)',
+                          fontSize: 12, fontWeight: 500,
                           color: order.side === 'buy' ? '#5BD197' : '#FD5E67',
-                          fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
                         }}>
-                          {order.side}
+                          {order.side === 'buy' ? 'Buy' : 'Sell'}
                         </span>
-                        <span style={{ fontSize: 11, color: '#7A7A83' }}>{order.time}</span>
+                        {/* Name (layout_L3PYAI — row, gap:4) */}
+                        <span style={{ fontSize: 12, fontWeight: 500, color: '#F9F9FA' }}>
+                          {market.ticker}
+                        </span>
                       </div>
-                      {activeTab === 'filled' && (
+                      {/* time ago text */}
+                      <span style={{ fontSize: 12, color: '#7A7A83' }}>{order.time}</span>
+                    </div>
+
+                    {/* Row (layout_U856NW — row, align:flex-end, gap:10, fill) */}
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+                      {/* Column (layout_GA7ZV3 — column, gap:4, fill) */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+                        {/* price row (layout_E5CWWL — row, center, gap:4, fill) */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          {/* label (layout_O8ROFQ — row, center, gap:2) */}
+                          <span style={{ fontSize: 12, color: '#7A7A83' }}>Price</span>
+                          {/* amount+collateral (layout_YIU0YL — row, center, gap:2) */}
+                          <span style={{ fontSize: 12, fontWeight: 500, color: '#F9F9FA' }}>
+                            ${order.price.toFixed(4)}
+                          </span>
+                        </div>
+                        {/* amount+collateral row */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ fontSize: 12, color: '#7A7A83' }}>Amount</span>
+                          <span style={{ fontSize: 12, fontWeight: 500, color: '#F9F9FA' }}>
+                            {order.amount >= 1000 ? (order.amount / 1000).toFixed(1) + 'K' : order.amount}
+                          </span>
+                          <span style={{ fontSize: 12, color: '#7A7A83' }}>/</span>
+                          <span style={{ fontSize: 12, fontWeight: 500, color: '#F9F9FA' }}>
+                            {order.collateral} {order.collateralSymbol}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* button (layout_IM74H7 — row, center, gap:4, padding:6px 12px)
+                          Resell: fill_Y9Y7MQ rgba(234,179,8,0.1), text fill_UWKHQI #FACC15
+                          Cancel: red tint */}
+                      {activeTab === 'filled' ? (
                         <button
                           style={{
-                            padding: '3px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                            background: '#252527', fontSize: 11, fontWeight: 500, color: '#5BD197',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            gap: 4, padding: '6px 12px', borderRadius: 8, border: 'none',
+                            cursor: 'pointer',
+                            background: 'rgba(234,179,8,0.1)',
+                            fontSize: 14, fontWeight: 500, color: '#FACC15', whiteSpace: 'nowrap',
                           }}
-                          onMouseEnter={e => { e.currentTarget.style.background = '#2E2E34'; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = '#252527'; }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(234,179,8,0.18)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(234,179,8,0.1)'; }}
                         >
                           Resell
                         </button>
-                      )}
-                      {activeTab === 'open' && (
+                      ) : (
                         <button
                           style={{
-                            padding: '3px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                            background: 'rgba(253,94,103,0.1)', fontSize: 11, fontWeight: 500, color: '#FD5E67',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            gap: 4, padding: '6px 12px', borderRadius: 8, border: 'none',
+                            cursor: 'pointer',
+                            background: 'rgba(253,94,103,0.1)',
+                            fontSize: 14, fontWeight: 500, color: '#FD5E67', whiteSpace: 'nowrap',
                           }}
                           onMouseEnter={e => { e.currentTarget.style.background = 'rgba(253,94,103,0.18)'; }}
                           onMouseLeave={e => { e.currentTarget.style.background = 'rgba(253,94,103,0.1)'; }}
@@ -787,24 +1146,30 @@ export default function MarketDetail() {
                         </button>
                       )}
                     </div>
-                    <div style={{ display: 'flex', gap: 14 }}>
-                      <div>
-                        <div style={{ fontSize: 10, color: '#7A7A83', marginBottom: 2 }}>Price</div>
-                        <div style={{ fontSize: 12, fontWeight: 500, color: '#F9F9FA' }}>
-                          ${order.price.toFixed(4)}
-                        </div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 10, color: '#7A7A83', marginBottom: 2 }}>Amount / Collateral</div>
-                        <div style={{ fontSize: 12, fontWeight: 500, color: '#F9F9FA' }}>
-                          {order.amount >= 1000 ? `${(order.amount / 1000).toFixed(1)}K` : order.amount} / {order.collateral} {order.collateralSymbol}
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 ))}
               </div>
+
+              {/* link (Figma: layout_WJ1E26 — row, space-between, padding:12px 16px, fill #1B1B1C)
+                  text: fill_B0EITJ #5BD197 | icon: fill_77R2ZH #FFFFFF */}
+              <button
+                style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '12px 16px', background: '#1B1B1C', borderRadius: 8,
+                  border: 'none', cursor: 'pointer', width: '100%', marginTop: 16,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#252527'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#1B1B1C'; }}
+              >
+                {/* text (layout_NIYQ5I — row, center, gap:8) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ color: '#FFFFFF', display: 'flex' }}><ExternalLink /></span>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: '#5BD197' }}>View All Orders</span>
+                </div>
+                <span style={{ color: '#FFFFFF', display: 'flex' }}><ChevronRight /></span>
+              </button>
             </div>
+
           </div>{/* end right col */}
 
         </div>{/* end grid */}
