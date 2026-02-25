@@ -12,6 +12,11 @@
   to   { width: 0%; }
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 /* ============================================================
  * DESIGN TOKENS — defined as plain CSS variables in :root
  * so they are always available regardless of Tailwind usage

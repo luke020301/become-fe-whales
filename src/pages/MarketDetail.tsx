@@ -647,6 +647,31 @@ export default function MarketDetail() {
   const [showChart, setShowChart]                 = useState(true);
   const [showConfirmModal, setShowConfirmModal]   = useState(false);
   const [confirmChecked, setConfirmChecked]       = useState(false);
+  const [pendingApproval, setPendingApproval]     = useState(false);
+  const [showToast, setShowToast]                 = useState(false);
+  const [showSuccessToast, setShowSuccessToast]   = useState(false);
+
+  /* auto-transition: pending toast → close modal → success toast after 3s */
+  useEffect(() => {
+    if (!showToast) return;
+    const timer = setTimeout(() => {
+      setShowToast(false);
+      setPendingApproval(false);
+      setShowConfirmModal(false);
+      setSelectedOrder(null);
+      setSelectedSide(null);
+      setBuyingAmount('');
+      setShowSuccessToast(true);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [showToast]);
+
+  /* auto-hide success toast after 8s */
+  useEffect(() => {
+    if (!showSuccessToast) return;
+    const timer = setTimeout(() => setShowSuccessToast(false), 8000);
+    return () => clearTimeout(timer);
+  }, [showSuccessToast]);
 
   /* lock body scroll when modal open */
   useEffect(() => {
@@ -1792,22 +1817,136 @@ export default function MarketDetail() {
 
             {/* action button (Figma: layout_L57D8E — column, gap:8) */}
             <button
-              disabled={!confirmChecked}
-              onClick={() => { setShowConfirmModal(false); }}
+              disabled={!confirmChecked || pendingApproval}
+              onClick={() => { setPendingApproval(true); setShowToast(true); }}
               style={{
                 display: 'flex', justifyContent: 'center', alignItems: 'center',
-                padding: '10px 20px', borderRadius: 10, border: 'none',
-                background: selectedSide === 'buy' ? '#16C284' : '#FF3B46',
-                opacity: confirmChecked ? 1 : 0.4,
+                gap: 8, padding: '10px 20px', borderRadius: 10, border: 'none',
+                background: '#16C284',
+                opacity: (confirmChecked && !pendingApproval) ? 1 : 0.4,
                 fontSize: 16, fontWeight: 500, color: '#F9F9FA',
-                cursor: confirmChecked ? 'pointer' : 'not-allowed',
+                cursor: (confirmChecked && !pendingApproval) ? 'pointer' : 'not-allowed',
                 transition: 'opacity 0.15s',
               }}
             >
-              Deposit {selectedOrder.collateral.toFixed(2)} SOL
+              {pendingApproval ? (
+                <>
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
+                    <path d="M10 2C5.58 2 2 5.58 2 10s3.58 8 8 8 8-3.58 8-8" stroke="#F9F9FA" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                  Pending Approval
+                </>
+              ) : (
+                `Deposit ${selectedOrder.collateral.toFixed(2)} SOL`
+              )}
             </button>
           </div>
         </>
+      )}
+
+      {/* ══════════════════════════════════════
+          TOAST — bottom-left (Figma: 31369:6834, type=in-progress)
+          ══════════════════════════════════════ */}
+      {showToast && (
+        <div style={{
+          position: 'fixed', bottom: 24, left: 16, zIndex: 1100,
+          width: 360, display: 'flex', gap: 8, padding: 12,
+          background: '#1B1B1C', borderRadius: 10,
+          boxShadow: '0 0 8px rgba(0,0,0,0.1)',
+          overflow: 'hidden',
+        }}>
+          {/* loading spinner */}
+          <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
+              <path d="M10 2C5.58 2 2 5.58 2 10s3.58 8 8 8 8-3.58 8-8" stroke="#5BD197" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </div>
+          {/* text */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
+            <span style={{ fontSize: 14, fontWeight: 500, color: '#F9F9FA' }}>
+              Waiting for wallet to sign transaction
+            </span>
+            <span style={{ fontSize: 12, color: '#B4B4BA' }}>
+              Pending wallet to sign
+            </span>
+          </div>
+          {/* close button */}
+          <div
+            onClick={() => { setShowToast(false); setPendingApproval(false); setShowConfirmModal(false); }}
+            style={{ display: 'flex', alignItems: 'center', padding: 2, cursor: 'pointer', flexShrink: 0 }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M4 4L12 12M12 4L4 12" stroke="#7A7A83" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </div>
+          {/* progress bar */}
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0,
+            height: 2, background: '#16C284',
+            animation: 'shrinkWidth 3s linear forwards',
+          }} />
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          SUCCESS TOAST — bottom-left (Figma: type=success)
+          ══════════════════════════════════════ */}
+      {showSuccessToast && (
+        <div style={{
+          position: 'fixed', bottom: 24, left: 16, zIndex: 1100,
+          width: 360, display: 'flex', gap: 12, padding: 12,
+          background: '#1B1B1C', borderRadius: 10,
+          boxShadow: '0 0 8px rgba(0,0,0,0.1)',
+          overflow: 'hidden',
+        }}>
+          {/* success checkmark icon */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', flexShrink: 0, paddingTop: 2 }}>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="9" fill="#5BD197" />
+              <path d="M6 10L9 13L14 7" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          {/* title + button */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
+            <span style={{ fontSize: 14, fontWeight: 500, color: '#F9F9FA' }}>
+              Transaction Confirmed
+            </span>
+            <a
+              href="https://etherscan.io/"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                alignSelf: 'flex-start',
+                padding: '6px 6px 6px 12px',
+                border: '1px solid #252527', borderRadius: 6,
+                background: 'transparent',
+                fontSize: 12, fontWeight: 500, color: '#F9F9FA',
+                textDecoration: 'none', cursor: 'pointer',
+              }}
+            >
+              View Transaction
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M3.5 8.5L8.5 3.5M8.5 3.5H4.5M8.5 3.5V7.5" stroke="#F9F9FA" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </a>
+          </div>
+          {/* close button */}
+          <div
+            onClick={() => setShowSuccessToast(false)}
+            style={{ display: 'flex', alignItems: 'flex-start', padding: 2, cursor: 'pointer', flexShrink: 0 }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M4 4L12 12M12 4L4 12" stroke="#7A7A83" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </div>
+          {/* progress bar */}
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0,
+            height: 2, background: '#16C284',
+            animation: 'shrinkWidth 8s linear forwards',
+          }} />
+        </div>
       )}
     </div>
   );
