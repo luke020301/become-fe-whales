@@ -108,7 +108,7 @@ function PriceChart({
   const dragRef = useRef<{ startX: number; startOffset: number } | null>(null);
 
   /* window size per time range */
-  const WINDOW_MAP: Record<string, number> = { '1d': 10, '7d': 20, '30d': CHART_DATA.length };
+  const WINDOW_MAP: Record<string, number> = { '1d': 10, '7d': 20, '30d': 40 };
   const windowSize = WINDOW_MAP[timeRange] ?? CHART_DATA.length;
   const maxOffset = Math.max(0, CHART_DATA.length - windowSize);
 
@@ -135,7 +135,7 @@ function PriceChart({
   const data = CHART_DATA.slice(clampedOffset, clampedOffset + windowSize);
 
   /* SVG viewport */
-  const W = 820; const PH = 240; const VH = 100;
+  const W = 820; const PH = 300; const VH = 100;
 
   /* Fixed Y scale — Figma right axis: 0.0050, 0.0040, 0.0030, 0.0020, 0.0010
      YPAD=38 aligns gridlines with space-between label centers (32px padding + 6px half-item-height) */
@@ -344,6 +344,10 @@ function PriceChart({
               );
             })()
           )}
+
+          {/* WhalesMarket logo — top-right corner */}
+          <img src="/images/logo-whalesmarket.svg" alt="WhalesMarket"
+            style={{ position: 'absolute', top: 8, right: 8, height: 20, pointerEvents: 'none' }} />
         </div>
 
         {/* Right Y-axis — Figma: layout_0F2LFP, padding:32px 16px, space-between, w:68 */}
@@ -602,13 +606,20 @@ function OrderBookRow({
         <button
           onClick={e => { e.stopPropagation(); onSelect(); }}
           style={{
-            width: 52, padding: '6px 0', borderRadius: 6, border: 'none', cursor: 'pointer',
-            background: btnBg, fontSize: 13, fontWeight: 500, color: btnColor,
+            width: 52, padding: isSelected ? 6 : '6px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+            background: isSelected ? (isSellPanel ? '#16C284' : '#FD5E67') : btnBg,
+            fontSize: 12, fontWeight: 500,
+            color: isSelected ? '#FFFFFF' : btnColor,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.8'; }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1'; }}
         >
-          {btnLabel}
+          {isSelected ? (
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M4.5 2.5L8.5 6L4.5 9.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          ) : btnLabel}
         </button>
       </div>
     </div>
@@ -625,6 +636,7 @@ export default function MarketDetail() {
 
   const [selectedOrder, setSelectedOrder]         = useState<OrderData | null>(null);
   const [selectedSide, setSelectedSide]           = useState<'buy' | 'sell' | null>(null);
+  const [buyingAmount, setBuyingAmount]           = useState('');
   const [activeTab, setActiveTab]                 = useState<'filled' | 'open'>('filled');
   const [timeRange, setTimeRange]                 = useState('1d');
   const [chartType, setChartType]                 = useState('Price');
@@ -654,8 +666,11 @@ export default function MarketDetail() {
   const currentOrders = activeTab === 'filled' ? MY_FILLED_ORDERS : MY_OPEN_ORDERS;
 
   function selectOrder(order: OrderData, side: 'buy' | 'sell') {
-    if (selectedOrder?.id === order.id) { setSelectedOrder(null); setSelectedSide(null); }
-    else { setSelectedOrder(order); setSelectedSide(side); }
+    if (selectedOrder?.id === order.id) { setSelectedOrder(null); setSelectedSide(null); setBuyingAmount(''); }
+    else {
+      setSelectedOrder(order); setSelectedSide(side);
+      setBuyingAmount(order.amount.toLocaleString());
+    }
   }
 
   /* ── gradient-border button helper ── */
@@ -931,7 +946,7 @@ export default function MarketDetail() {
             MAIN 2-COL LAYOUT
             ══════════════════════════════════════ */}
         {/* layout_QYPFU4 — row, gap:16, fill */}
-        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', marginTop: 24 }}>
 
           {/* ═══════════════════════════════════════
               LEFT: market frame (Figma: 37315-160537)
@@ -945,7 +960,7 @@ export default function MarketDetail() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <span style={{ fontSize: 18, fontWeight: 500, color: '#F9F9FA' }}>Trading Market</span>
                 <a
-                  href="#" onClick={e => e.preventDefault()}
+                  href="https://docs.whales.market/" target="_blank" rel="noopener noreferrer"
                   style={{
                     display: 'flex', alignItems: 'center', gap: 2, alignSelf: 'flex-start',
                     fontSize: 12, color: '#7A7A83', textDecoration: 'none',
@@ -1017,7 +1032,7 @@ export default function MarketDetail() {
                   {SELL_ORDERS.map(order => (
                     <OrderBookRow key={order.id} order={order} side="sell" maxCol={maxSell}
                       isSelected={selectedOrder?.id === order.id}
-                      onSelect={() => selectOrder(order, 'sell')}
+                      onSelect={() => selectOrder(order, 'buy')}
                       collateralSymbol={collateral} chainLogo={market.chainLogo} />
                   ))}
                 </div>
@@ -1047,7 +1062,7 @@ export default function MarketDetail() {
                   {BUY_ORDERS.map(order => (
                     <OrderBookRow key={order.id} order={order} side="buy" maxCol={maxBuy}
                       isSelected={selectedOrder?.id === order.id}
-                      onSelect={() => selectOrder(order, 'buy')}
+                      onSelect={() => selectOrder(order, 'sell')}
                       collateralSymbol={collateral} chainLogo={market.chainLogo} />
                   ))}
                 </div>
@@ -1208,7 +1223,7 @@ export default function MarketDetail() {
               ═══════════════════════════════════════ */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: 384, flexShrink: 0 }}>
 
-            {/* ── trade-panel (Figma: layout_0FKQ30 — column, center, gap:16, pb:24, w:384)
+            {/* ── trade-panel (Figma: layout_ZRXC7P — column, center, gap:16, pb:24)
                 fills: #0A0A0B | strokes: border-bottom 4px #1B1B1C ── */}
             <div style={{
               background: '#0A0A0B',
@@ -1217,55 +1232,136 @@ export default function MarketDetail() {
               paddingBottom: 24, paddingTop: 16,
             }}>
 
-              {/* block-title (Figma: layout_WB79CK — row, stretch, no side padding) */}
-              <div style={{ display: 'flex', alignSelf: 'stretch' }}>
-                {/* title (layout_DDOVKO — column, center, gap:4, fill) */}
+              {/* block-title (Figma: layout_F5ZHNQ — row, space-between, stretch) */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignSelf: 'stretch' }}>
+                {/* title (layout_768HL9 — column, center, gap:4, fill) */}
                 <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4, flex: 1 }}>
-                  {/* token row: "Trade SKATE" — label/text-label-lg 18px 500 */}
+                  {/* token row: "Buy SKATE" / "Sell SKATE" — label/text-label-lg 18px 500 */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 18, fontWeight: 500, color: '#F9F9FA' }}>
-                      Trade {market.ticker}
+                    <span style={{
+                      fontSize: 18, fontWeight: 500,
+                      color: selectedSide === 'buy' ? '#5BD197' : selectedSide === 'sell' ? '#FD5E67' : '#F9F9FA',
+                    }}>
+                      {selectedSide === 'buy' ? 'Buy' : selectedSide === 'sell' ? 'Sell' : 'Trade'} {market.ticker}
                     </span>
                   </div>
-                  {/* price row: "Price -" — body/text-body-xs 12px gray */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  {/* price row */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     <span style={{ fontSize: 12, color: '#7A7A83' }}>Price</span>
-                    <span style={{ fontSize: 12, color: '#7A7A83' }}>{selectedOrder ? ('$' + selectedOrder.price.toFixed(4)) : '-'}</span>
+                    <span style={{ fontSize: 12, color: '#F9F9FA' }}>{'$' + market.price.toFixed(4)}</span>
+                    <span style={{ fontSize: 12, color: market.priceChange24h >= 0 ? '#5BD197' : '#FD5E67' }}>
+                      {market.priceChange24h >= 0 ? '+' : ''}{market.priceChange24h.toFixed(2)}%
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* trade-form (Figma: layout_3C9876 — column, center, padding:32, h:216, br:10, stroke:1px #1B1B1C) */}
+              {/* trade-form */}
               {selectedOrder && selectedSide ? (
-                /* ── Order selected state ── */
+                /* ── Order selected: Buying/Selling form (Figma: layout_5WLQOA) ── */
                 <div style={{
-                  display: 'flex', flexDirection: 'column', justifyContent: 'center',
-                  alignSelf: 'stretch', padding: 32, minHeight: 216,
-                  border: '1px solid #1B1B1C', borderRadius: 10, gap: 16,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  alignSelf: 'stretch', borderRadius: 10, border: '1px solid #1B1B1C',
+                  position: 'relative',
                 }}>
-                  {/* buy / sell toggle */}
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {(['buy', 'sell'] as const).map(s => {
-                      const active = selectedSide === s;
-                      const col = s === 'buy' ? '#5BD197' : '#FD5E67';
-                      const bg  = s === 'buy' ? 'rgba(22,194,132,0.1)' : 'rgba(253,94,103,0.1)';
-                      const bdr = s === 'buy' ? 'rgba(22,194,132,0.3)' : 'rgba(253,94,103,0.3)';
-                      return (
-                        <div key={s} style={{
-                          flex: 1, padding: '8px', borderRadius: 8, textAlign: 'center',
-                          background: active ? bg : 'transparent',
-                          border: '1px solid ' + (active ? bdr : '#252527'),
-                          color: active ? col : '#7A7A83',
-                          fontSize: 14, fontWeight: 500, textTransform: 'capitalize',
-                        }}>
-                          {s === 'buy' ? 'Buy' : 'Sell'}
-                        </div>
-                      );
-                    })}
+                  {/* top form item — Buying section */}
+                  <div style={{
+                    display: 'flex', flexDirection: 'column', justifyContent: 'center',
+                    alignSelf: 'stretch', gap: 8, padding: 16, background: '#1B1B1C',
+                    borderRadius: '10px 10px 0 0',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <span style={{ fontSize: 12, fontWeight: 500, color: '#7A7A83', flex: 1 }}>
+                        {selectedSide === 'buy' ? 'Buying' : 'Selling'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
+                        <input
+                          type="text"
+                          value={buyingAmount}
+                          onChange={e => setBuyingAmount(e.target.value)}
+                          style={{
+                            fontSize: 24, fontWeight: 500, color: '#F9F9FA',
+                            background: 'transparent', border: 'none', outline: 'none',
+                            padding: 0, margin: 0, width: '100%',
+                            caretColor: '#5BD197', fontFamily: 'inherit',
+                          }}
+                        />
+                      </div>
+                      {/* currency badge */}
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 4,
+                        padding: '4px 16px 4px 4px', borderRadius: 9999,
+                        border: '1px solid #252527',
+                      }}>
+                        <img
+                          src={market.logo}
+                          alt="" style={{ width: 20, height: 20, borderRadius: '50%' }}
+                          onError={e => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${market.ticker}&size=20&background=252527&color=F9F9FA`; }}
+                        />
+                        <span style={{ fontSize: 14, fontWeight: 500, color: '#F9F9FA' }}>
+                          {market.ticker}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* swap icon (Figma: absolute, centered between sections) */}
+                  <div style={{
+                    position: 'absolute', top: '50%', left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: 28, height: 28, borderRadius: 9999,
+                    background: '#1B1B1C', border: '1px solid #0A0A0B',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 2,
+                  }}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M8 3V13M8 13L4.5 9.5M8 13L11.5 9.5" stroke="#F9F9FA" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+
+                  {/* bottom form item — Selling section (non-interactive, no bg) */}
+                  <div style={{
+                    display: 'flex', flexDirection: 'column', justifyContent: 'center',
+                    alignSelf: 'stretch', gap: 8, padding: 16,
+                    borderRadius: '0 0 10px 10px',
+                    cursor: 'not-allowed', userSelect: 'none',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <span style={{ fontSize: 12, fontWeight: 500, color: '#7A7A83', flex: 1 }}>
+                        {selectedSide === 'buy' ? 'Selling' : 'Buying'}
+                      </span>
+                      <span style={{ fontSize: 12, color: '#7A7A83' }}>
+                        Balance: 18.32 SOL
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
+                        <span style={{ fontSize: 24, fontWeight: 500, color: '#F9F9FA' }}>
+                          {selectedOrder.collateral.toFixed(2)}
+                        </span>
+                      </div>
+                      {/* currency badge */}
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 4,
+                        padding: '4px 16px 4px 4px', borderRadius: 9999,
+                        border: '1px solid #252527',
+                      }}>
+                        <img
+                          src="/images/logo-sol.png"
+                          alt="" style={{ width: 20, height: 20, borderRadius: '50%' }}
+                          onError={e => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=SOL&size=20&background=252527&color=F9F9FA`; }}
+                        />
+                        <span style={{ fontSize: 14, fontWeight: 500, color: '#F9F9FA' }}>
+                          SOL
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ) : (
-                /* ── Empty state: mascot (Figma: mascot 96×96 + text) ── */
+                /* ── Empty state: mascot ── */
                 <div style={{
                   display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center',
                   alignSelf: 'stretch', padding: 32, height: 216,
@@ -1278,9 +1374,30 @@ export default function MarketDetail() {
                 </div>
               )}
 
-              {/* buttons (Figma: layout_3EZPEQ — row, stretch, gap:8, fill, no outer padding)
-                  button: secondary/filled/lg — padding:10px 20px, br:10
-                  disabled: opacity 0.4, bg #F9F9FA, text #0A0A0B */}
+              {/* progress slider (Figma: input-progress-drag, layout_F072NQ) */}
+              {selectedOrder && selectedSide && (
+                <div style={{ display: 'flex', alignItems: 'center', padding: '0 12px', alignSelf: 'stretch', height: 24 }}>
+                  <div style={{ position: 'relative', flex: 1, height: 24 }}>
+                    {/* track line — centered vertically */}
+                    <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 2, transform: 'translateY(-50%)', background: '#EFEFF1', borderRadius: 1 }} />
+                    {/* dot markers — outline with solid bg to mask track */}
+                    {[0, 25, 50, 75, 100].map(pct => (
+                      <div key={pct} style={{
+                        position: 'absolute', top: '50%', left: `${pct}%`,
+                        transform: 'translate(-50%, -50%)',
+                        width: 12, height: 12,
+                        borderRadius: '50%',
+                        background: '#0A0A0B',
+                        border: '2px solid #EFEFF1',
+                        boxSizing: 'border-box',
+                        cursor: 'pointer',
+                      }} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* action button (Figma: layout_MOR1WN — row, stretch, gap:8) */}
               <div style={{ display: 'flex', alignSelf: 'stretch', gap: 8 }}>
                 <button
                   disabled={!selectedOrder}
@@ -1289,37 +1406,42 @@ export default function MarketDetail() {
                     gap: 8, padding: '10px 20px', borderRadius: 10, border: 'none',
                     cursor: selectedOrder ? 'pointer' : 'not-allowed',
                     background: selectedOrder
-                      ? (selectedSide === 'buy' ? '#16C284' : '#FD5E67')
+                      ? (selectedSide === 'buy' ? '#16C284' : '#FF3B46')
                       : '#F9F9FA',
                     fontSize: 16, fontWeight: 500,
-                    color: '#0A0A0B',
+                    color: selectedOrder ? '#F9F9FA' : '#0A0A0B',
                     opacity: selectedOrder ? 1 : 0.4,
                     transition: 'opacity 0.15s',
                   }}
                   onMouseEnter={e => { if (selectedOrder) e.currentTarget.style.opacity = '0.88'; }}
                   onMouseLeave={e => { e.currentTarget.style.opacity = selectedOrder ? '1' : '0.4'; }}
                 >
-                  Trade {market.ticker}
+                  {selectedSide === 'buy' ? 'Buy' : selectedSide === 'sell' ? 'Sell' : ('Trade ' + market.ticker)}
                 </button>
               </div>
 
-              {/* oder-info-group (Figma: layout_M3HK0O — column, gap:8, fill, no outer side padding) */}
+              {/* oder-info-group (Figma: layout_KCNEQI — column, gap:8, fill) */}
               <div style={{ display: 'flex', flexDirection: 'column', alignSelf: 'stretch', gap: 8 }}>
                 {[
-                  { label: 'Price',          value: selectedOrder ? ('$' + selectedOrder.price.toFixed(4) + ' ' + collateral) : '-' },
-                  { label: 'Amount Deliver', value: selectedOrder ? (selectedOrder.amount.toLocaleString() + ' ' + market.ticker) : '-' },
-                  { label: 'To be Received', value: selectedOrder ? ('$' + selectedOrder.collateral.toFixed(2) + ' ' + collateral) : '-' },
+                  { label: 'Price',          value: selectedOrder ? ('$' + selectedOrder.price.toFixed(4)) : '-' },
+                  { label: 'Amount Deliver', value: selectedOrder
+                    ? (selectedSide === 'buy'
+                      ? selectedOrder.collateral.toFixed(2) + ' SOL'
+                      : selectedOrder.amount.toLocaleString() + ' ' + market.ticker)
+                    : '-' },
+                  { label: 'To be Received', value: selectedOrder
+                    ? (selectedSide === 'buy'
+                      ? fmtK(selectedOrder.amount) + ' ' + market.ticker
+                      : selectedOrder.collateral.toFixed(2) + ' SOL')
+                    : '-' },
                 ].map(row => (
-                  /* oder-info (layout_Y7TI48 — row, space-between, center, gap:16) */
                   <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
-                    {/* offer-info-item left — body/text-body-sm 14px + dashed bottom stroke_5HABF9 */}
                     <span style={{
                       fontSize: 14, color: '#7A7A83',
                       borderBottom: '1px dashed #2E2E34', paddingBottom: 2,
                     }}>
                       {row.label}
                     </span>
-                    {/* offer-info-item right (layout_ZT3SBO, no stroke) */}
                     <span style={{ fontSize: 14, fontWeight: 500, color: '#F9F9FA' }}>
                       {row.value}
                     </span>
