@@ -645,6 +645,15 @@ export default function MarketDetail() {
   const [fillType, setFillType]                   = useState('All');
   const [orderType, setOrderType]                 = useState('All');
   const [showChart, setShowChart]                 = useState(true);
+  const [showConfirmModal, setShowConfirmModal]   = useState(false);
+  const [confirmChecked, setConfirmChecked]       = useState(false);
+
+  /* lock body scroll when modal open */
+  useEffect(() => {
+    if (showConfirmModal) { document.body.style.overflow = 'hidden'; }
+    else { document.body.style.overflow = ''; }
+    return () => { document.body.style.overflow = ''; };
+  }, [showConfirmModal]);
 
   /* not found */
   if (!market) {
@@ -1401,6 +1410,7 @@ export default function MarketDetail() {
               <div style={{ display: 'flex', alignSelf: 'stretch', gap: 8 }}>
                 <button
                   disabled={!selectedOrder}
+                  onClick={() => { if (selectedOrder) { setConfirmChecked(false); setShowConfirmModal(true); } }}
                   style={{
                     flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center',
                     gap: 8, padding: '10px 20px', borderRadius: 10, border: 'none',
@@ -1612,6 +1622,193 @@ export default function MarketDetail() {
 
         </div>{/* end grid */}
       </div>
+
+      {/* ══════════════════════════════════════
+          CONFIRM ORDER MODAL (Figma: 37222-132527)
+          ══════════════════════════════════════ */}
+      {showConfirmModal && selectedOrder && selectedSide && (
+        <>
+          {/* overlay */}
+          <div
+            onClick={() => setShowConfirmModal(false)}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 1000,
+              background: 'rgba(0, 0, 0, 0.8)',
+              backdropFilter: 'blur(4px)',
+            }}
+          />
+          {/* modal */}
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              position: 'fixed', top: '50%', left: '50%',
+              transform: 'translate(-50%, -50%)', zIndex: 1001,
+              width: 480, display: 'flex', flexDirection: 'column', gap: 16,
+              padding: 24, background: '#1B1B1C', borderRadius: 24,
+              boxShadow: '0 0 32px rgba(0,0,0,0.2)',
+            }}
+          >
+            {/* modal-header (Figma: layout_D1KZMW) */}
+            <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+              <span style={{ fontSize: 18, fontWeight: 500, color: '#F9F9FA' }}>
+                Confirm {selectedSide === 'buy' ? 'Buy' : 'Sell'} Order
+              </span>
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                style={{
+                  position: 'absolute', right: 0, top: 0,
+                  width: 32, height: 32, borderRadius: 9999,
+                  background: '#252527', border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M4 4L12 12M12 4L4 12" stroke="#F9F9FA" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+
+            {/* modal-body (Figma: layout_2BSN2D — column, gap:16) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+              {/* confirmation text */}
+              <span style={{ fontSize: 14, color: '#B4B4BA', lineHeight: 1.43 }}>
+                You are{' '}
+                <span style={{ color: selectedSide === 'buy' ? '#5BD197' : '#FD5E67' }}>
+                  {selectedSide === 'buy' ? 'buying' : 'selling'}
+                </span>{' '}
+                <span style={{ color: '#F9F9FA', fontWeight: 500 }}>
+                  {selectedOrder.amount.toLocaleString()} {market.ticker}
+                </span>{' '}
+                for{' '}
+                <span style={{ color: '#F9F9FA', fontWeight: 500 }}>
+                  {selectedOrder.collateral.toFixed(2)} SOL
+                </span>.{' '}
+                Are you sure?
+              </span>
+
+              {/* review-info (Figma: layout_WOQVON — column, border 1px #252527, br:10) */}
+              <div style={{ border: '1px solid #252527', borderRadius: 10 }}>
+                {[
+                  {
+                    label: selectedSide === 'buy' ? 'Buying' : 'Selling',
+                    value: selectedOrder.amount.toLocaleString(),
+                    badge: { text: market.ticker, logo: market.logo },
+                  },
+                  {
+                    label: 'For',
+                    value: selectedOrder.collateral.toFixed(2),
+                    badge: { text: 'SOL', logo: '/images/logo-sol.png' },
+                  },
+                  {
+                    label: 'Price',
+                    value: '$' + selectedOrder.price.toFixed(4),
+                  },
+                  {
+                    label: 'Collateral',
+                    value: selectedOrder.collateral.toFixed(2),
+                    badge: { text: 'SOL', logo: '/images/logo-sol.png' },
+                  },
+                  {
+                    label: 'Fee',
+                    value: (selectedOrder.amount * selectedOrder.price * 0.025).toFixed(2),
+                    feeBadge: true,
+                  },
+                ].map((row, i, arr) => (
+                  <div key={row.label} style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: 16,
+                    borderBottom: i < arr.length - 1 ? '1px dashed #44444B' : 'none',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 14, color: '#B4B4BA' }}>{row.label}</span>
+                      {row.feeBadge && (
+                        <span style={{
+                          fontSize: 10, fontWeight: 500, color: '#5BD197', textTransform: 'uppercase',
+                          background: 'rgba(22,194,132,0.1)', borderRadius: 9999,
+                          padding: '2px 6px',
+                        }}>
+                          -0% Fee
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: '#F9F9FA' }}>{row.value}</span>
+                      {row.badge && (
+                        <img
+                          src={row.badge.logo} alt=""
+                          style={{ width: 16, height: 16, borderRadius: '50%' }}
+                          onError={e => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${row.badge!.text}&size=16&background=252527&color=F9F9FA`; }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* notice (Figma: layout_CUHDDP — column, gap:12) */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {/* notice title */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M8 1.5C4.41 1.5 1.5 4.41 1.5 8C1.5 11.59 4.41 14.5 8 14.5C11.59 14.5 14.5 11.59 14.5 8C14.5 4.41 11.59 1.5 8 1.5ZM8 11.25C7.59 11.25 7.25 10.91 7.25 10.5V8C7.25 7.59 7.59 7.25 8 7.25C8.41 7.25 8.75 7.59 8.75 8V10.5C8.75 10.91 8.41 11.25 8 11.25ZM8.75 6H7.25V4.75H8.75V6Z" fill="#F0B90B" />
+                    </svg>
+                    <span style={{ fontSize: 14, fontWeight: 500, color: '#F0B90B' }}>Notice</span>
+                  </div>
+                  <div style={{ height: 1, background: '#252527' }} />
+                </div>
+                {/* notice text */}
+                <span style={{ fontSize: 14, color: '#B4B4BA', lineHeight: 1.43 }}>
+                  You'll receive your tokens after Settle Starts when seller settles.
+                  {'\n\n'}
+                  If they don't settle by Settle Ends, you can cancel the order to get back
+                  your deposited {selectedOrder.collateral.toFixed(2)} SOL plus{' '}
+                  {selectedOrder.collateral.toFixed(2)} SOL compensation from their collateral.
+                </span>
+                {/* checkbox */}
+                <div
+                  onClick={() => setConfirmChecked(!confirmChecked)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+                >
+                  <div style={{
+                    width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                    background: confirmChecked ? '#16C284' : '#252527',
+                    border: confirmChecked ? 'none' : '1px solid #44444B',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {confirmChecked && (
+                      <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                        <path d="M2 5L4.5 7.5L8 2.5" stroke="#FFF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </div>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: '#F9F9FA' }}>
+                    Yes, I understand.
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* action button (Figma: layout_L57D8E — column, gap:8) */}
+            <button
+              disabled={!confirmChecked}
+              onClick={() => { setShowConfirmModal(false); }}
+              style={{
+                display: 'flex', justifyContent: 'center', alignItems: 'center',
+                padding: '10px 20px', borderRadius: 10, border: 'none',
+                background: selectedSide === 'buy' ? '#16C284' : '#FF3B46',
+                opacity: confirmChecked ? 1 : 0.4,
+                fontSize: 16, fontWeight: 500, color: '#F9F9FA',
+                cursor: confirmChecked ? 'pointer' : 'not-allowed',
+                transition: 'opacity 0.15s',
+              }}
+            >
+              Deposit {selectedOrder.collateral.toFixed(2)} SOL
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
