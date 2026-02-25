@@ -751,13 +751,14 @@ export default function MarketDetail() {
         {/* ══════════════════════════════════════
             MAIN 2-COL LAYOUT
             ══════════════════════════════════════ */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 384px', gap: 16, marginTop: 16 }}>
+        {/* layout_QYPFU4 — row, gap:16, fill */}
+        <div style={{ display: 'flex', gap: 16, marginTop: 16, alignItems: 'flex-start' }}>
 
           {/* ═══════════════════════════════════════
               LEFT: market frame (Figma: 37315-160537)
               column, gap:16, padding:16px 0px
               ═══════════════════════════════════════ */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, flex: 1, minWidth: 0 }}>
 
             {/* ── block-title (Figma: layout_R255GA — row, space-between, center, gap:8) ── */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -876,11 +877,14 @@ export default function MarketDetail() {
             </div>
           </div>
 
+          {/* LINE divider (Figma: id:37222:132672 — layout_2I2YPO, stroke_C1E8N2: 1px #1B1B1C, fill height) */}
+          <div style={{ width: 1, alignSelf: 'stretch', background: '#1B1B1C', flexShrink: 0 }} />
+
           {/* ═══════════════════════════════════════
               RIGHT: trade+chart (Figma: 37222-132673)
               column, gap:16, padding:16px 0px
               ═══════════════════════════════════════ */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: 384, flexShrink: 0 }}>
 
             {/* ── trade-panel (Figma: layout_Y4KCU5 — column, center, gap:16, pb:24, w:384)
                 fills: #0A0A0B | strokes: border-bottom 4px #1B1B1C ── */}
