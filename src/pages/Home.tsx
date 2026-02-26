@@ -1305,6 +1305,9 @@ export default function Home() {
     <div className="min-h-screen" style={{ background: '#0A0A0B' }}>
       <main
         style={{
+          maxWidth: isMobile ? undefined : 1440,
+          margin: isMobile ? undefined : '0 auto',
+          width: '100%',
           display: 'flex', flexDirection: 'column',
           gap: isMobile ? 0 : 16,
           padding: isMobile ? '8px 0' : '16px 32px',

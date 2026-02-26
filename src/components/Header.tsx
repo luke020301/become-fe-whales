@@ -752,7 +752,7 @@ export default function Header() {
       className="sticky top-0 z-50"
       style={{ borderBottom: '1px solid #1B1B1C', backgroundColor: '#0A0A0B' }}
     >
-      <div style={{ padding: '0 32px' }}>
+      <div style={{ maxWidth: 1440, margin: '0 auto', padding: '0 32px' }}>
         <div className="flex items-center gap-4" style={{ padding: '12px 16px' }}>
 
           {/* ── logo + nav ── */}
