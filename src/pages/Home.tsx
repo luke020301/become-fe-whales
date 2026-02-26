@@ -5,6 +5,17 @@ import { markets, bannerMarkets } from '../mock-data/markets';
 import { recentTrades } from '../mock-data/trades';
 import type { Market } from '../mock-data/markets';
 
+/* ─────────── useIsMobile ─────────── */
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
+  return isMobile;
+}
+
 /* ─────────── helpers ─────────── */
 const fmt = (n: number, dec = 2) =>
   n.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
@@ -265,22 +276,26 @@ function MarketTable({
   title,
   data,
   showSearch = false,
+  isMobile = false,
 }: {
   title: string;
   data: Market[];
   showSearch?: boolean;
+  isMobile?: boolean;
 }) {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [networkFilter, setNetworkFilter] = useState('all');
   // Multi-column sort: each column can independently be asc/desc/off
   const [sortStates, setSortStates] = useState<SortStates>({});
+  const [visibleCount, setVisibleCount] = useState(5);
   const [activeTab, setActiveTab] = useState<'live' | 'ended'>('live');
 
   const handleTabChange = (tab: 'live' | 'ended') => {
     setActiveTab(tab);
     setSortStates(tab === 'live' ? { volume24h: 'desc' } : {});
     setSearch('');
+    setVisibleCount(5);
   };
 
   // Split by tab first, then filter by search
@@ -371,6 +386,126 @@ function MarketTable({
       </span>
     </div>
   );
+
+  /* ── badge counts ── */
+  const liveCount = data.filter((m) => m.status !== 'ended').length;
+  const endedCount = data.filter((m) => m.status === 'ended').length;
+
+  if (isMobile) {
+    return (
+      <section style={{ background: '#0A0A0B', display: 'flex', flexDirection: 'column' }}>
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 0, padding: '0 16px', borderBottom: '1px solid #1B1B1C' }}>
+          {(['live', 'ended'] as const).map((tab) => {
+            const label = tab === 'live' ? title : 'Ended';
+            const count = tab === 'live' ? liveCount : endedCount;
+            const active = activeTab === tab;
+            return (
+              <button
+                key={tab}
+                onClick={() => handleTabChange(tab)}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  padding: '14px 0', marginRight: 24,
+                  borderBottom: active ? '2px solid #F9F9FA' : '2px solid transparent',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}
+              >
+                <span style={{ fontSize: 18, fontWeight: 500, color: active ? '#F9F9FA' : '#7A7A83' }}>{label}</span>
+                <span style={{
+                  fontSize: 10, fontWeight: 500, color: active ? '#F9F9FA' : '#B4B4BA',
+                  background: active ? '#16C284' : '#1B1B1C',
+                  borderRadius: 9999, padding: '2px 6px', lineHeight: '1.2em',
+                }}>{count}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Search + network filter */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px' }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, background: '#1B1B1C', borderRadius: 8, padding: '8px 12px' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7A7A83" strokeWidth="2">
+              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+            </svg>
+            <input
+              value={search} onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search" style={{ background: 'none', border: 'none', outline: 'none', flex: 1, fontSize: 14, color: '#F9F9FA' }}
+            />
+          </div>
+          <NetworkDropdown selected={networkFilter} onChange={setNetworkFilter} />
+        </div>
+
+        {/* Column header */}
+        <div style={{ display: 'flex', alignItems: 'center', padding: '0 16px', borderBottom: '1px solid #1B1B1C' }}>
+          <div style={{ flex: 1, fontSize: 12, color: '#7A7A83', padding: '8px 0' }}>Token</div>
+          <div
+            style={{ width: 140, fontSize: 12, color: sortStates['price'] ? '#F9F9FA' : '#7A7A83', padding: '8px 0', textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, cursor: 'pointer' }}
+            onClick={() => handleSort('price')}
+          >
+            Last Price ($) <SortIcon k="price" />
+          </div>
+        </div>
+
+        {/* Rows */}
+        {filtered.length === 0 ? emptyRow : filtered.slice(0, visibleCount).map((m) => (
+          <div
+            key={m.id}
+            onClick={() => navigate(`/market/${m.id}`)}
+            style={{ display: 'flex', alignItems: 'center', padding: '0 16px', borderBottom: '1px solid #1B1B1C', cursor: 'pointer' }}
+            onTouchStart={(e) => { (e.currentTarget as HTMLElement).style.background = '#1B1B1C'; }}
+            onTouchEnd={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+          >
+            {/* Token cell */}
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0' }}>
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <img src={m.logo} alt={m.ticker}
+                  style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }}
+                  onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${m.ticker}&background=252527&color=F9F9FA&size=36`; }}
+                />
+                <img src={m.chainLogo} alt="chain"
+                  style={{ position: 'absolute', left: 0, bottom: -2, width: 14, height: 14, borderRadius: 3, border: '1.5px solid #0A0A0B', objectFit: 'cover' }}
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span style={{ fontSize: 14, fontWeight: 500, color: '#F9F9FA' }}>{m.ticker}</span>
+                <span style={{ fontSize: 12, color: '#7A7A83' }}>{m.name}</span>
+              </div>
+            </div>
+            {/* Price cell */}
+            <div style={{ width: 140, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, padding: '12px 0' }}>
+              <span style={{ fontSize: 14, fontWeight: 500, color: '#F9F9FA' }}>${fmt(m.price, m.price < 1 ? 4 : 2)}</span>
+              <PctBadge v={m.priceChange24h} />
+            </div>
+          </div>
+        ))}
+
+        {/* Load more */}
+        {filtered.length > visibleCount && (
+          <div style={{ padding: '12px 16px' }}>
+            <button
+              onClick={() => setVisibleCount((c) => c + 10)}
+              style={{
+                width: '100%',
+                padding: '8px 16px',
+                borderRadius: 8,
+                border: '1px solid #252527',
+                background: 'transparent',
+                color: '#F9F9FA',
+                fontSize: 14,
+                fontWeight: 500,
+                lineHeight: '1.429em',
+                cursor: 'pointer',
+              }}
+            >
+              Load more Markets
+            </button>
+          </div>
+        )}
+      </section>
+    );
+  }
 
   return (
     <section className="flex flex-col gap-4 p-4" style={{ background: '#0A0A0B' }}>
@@ -709,6 +844,158 @@ function RecentTradesTable() {
   );
 }
 
+/* ─────────── Mobile Recent Trades ─────────── */
+function MobileRecentTrades() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', padding: '0 16px' }}>
+      {/* Header */}
+      <div style={{ paddingBottom: 12 }}>
+        <span style={{ fontSize: 18, fontWeight: 500, color: '#F9F9FA', lineHeight: '1.56em' }}>Recent Trades</span>
+      </div>
+
+      {/* Rows */}
+      {recentTrades.map((t) => (
+        <div key={t.id} style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 16, borderBottom: '1px solid #1B1B1C', marginBottom: 16 }}>
+          {/* Top row: badge + logo + pair + optional badge + time */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {/* Side badge */}
+              <span style={{ fontSize: 14, fontWeight: 500, lineHeight: '1.43em', color: t.side === 'buy' ? '#5BD197' : '#FD5E67' }}>
+                {t.side === 'buy' ? 'Buy' : 'Sell'}
+              </span>
+              {/* Token logo */}
+              <div style={{ padding: 2, flexShrink: 0 }}>
+                <img src={t.pairLogo} alt={t.pair}
+                  style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }}
+                  onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${t.pair.split('/')[0]}&background=252527&color=F9F9FA&size=20`; }}
+                />
+              </div>
+              {/* Pair name */}
+              <span style={{ fontSize: 14, fontWeight: 500, color: '#F9F9FA', lineHeight: '1.43em' }}>{t.pair}</span>
+              {/* Optional position badge */}
+              {t.badge && (
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  padding: '4px 8px', borderRadius: 9999,
+                  background: t.badge.color, fontSize: 10, fontWeight: 500,
+                  lineHeight: '1.2em', textTransform: 'uppercase', color: '#0A0A0B',
+                }}>
+                  {t.badge.initials}
+                </span>
+              )}
+            </div>
+            {/* Time */}
+            <span style={{ fontSize: 12, fontWeight: 400, color: '#7A7A83', lineHeight: '1.33em', flexShrink: 0 }}>{t.time}</span>
+          </div>
+
+          {/* Bottom row: price/amount col + view button */}
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
+            {/* Left: price + amount/collateral */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ fontSize: 12, fontWeight: 400, color: '#7A7A83', lineHeight: '1.33em' }}>Price</span>
+                <span style={{ fontSize: 12, fontWeight: 400, color: '#F9F9FA', lineHeight: '1.33em' }}>${t.price.toFixed(4)}</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ fontSize: 12, fontWeight: 400, color: '#7A7A83', lineHeight: '1.33em' }}>Amount / Collateral</span>
+                <span style={{ fontSize: 12, fontWeight: 400, color: '#F9F9FA', lineHeight: '1.33em' }}>
+                  {fmtK(t.amount)} / {fmtK(t.collateral)}&nbsp;
+                  <img src={t.collateralLogo} alt="" style={{ width: 12, height: 12, borderRadius: '50%', objectFit: 'cover', verticalAlign: 'middle', display: 'inline' }} />
+                </span>
+              </div>
+            </div>
+            {/* Right: View button */}
+            <button
+              onClick={() => window.open(`https://etherscan.io/tx/${t.txId}`, '_blank')}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: 6, borderRadius: 6, border: '1px solid #252527',
+                background: 'transparent', color: '#F9F9FA', cursor: 'pointer', flexShrink: 0,
+              }}
+            >
+              <span style={{ padding: 2, display: 'flex' }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M6 6h12v12h-2V9.41L5.41 20 4 18.59 14.59 8H6V6Z" />
+                </svg>
+              </span>
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ─────────── Mobile Banner Carousel ─────────── */
+function MobileBannerCarousel() {
+  const navigate = useNavigate();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  const onScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const idx = Math.round(el.scrollLeft / el.clientWidth);
+    setActiveIdx(Math.min(idx, bannerMarkets.length - 1));
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {/* Cards */}
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        style={{
+          display: 'flex', gap: 8,
+          overflowX: 'auto', scrollSnapType: 'x mandatory',
+          scrollbarWidth: 'none', padding: '0 16px',
+          WebkitOverflowScrolling: 'touch',
+        } as React.CSSProperties}
+      >
+        {bannerMarkets.map((item, i) => (
+          <div
+            key={i}
+            onClick={() => navigate(`/market/${item.ticker.toLowerCase()}`)}
+            style={{
+              flexShrink: 0, width: 'calc(100vw - 32px)',
+              height: 137, borderRadius: 10,
+              border: '1px solid rgba(255,255,255,0.1)',
+              position: 'relative', overflow: 'hidden',
+              scrollSnapAlign: 'start', cursor: 'pointer',
+            }}
+          >
+            {/* Background image fills card */}
+            <img src={item.bgImage} alt=""
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+
+            {/* Content — centered column per Figma */}
+            <div style={{
+              position: 'absolute', inset: 0,
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              gap: 8, padding: '0 32px',
+            }}>
+              {/* Token logo 44px */}
+              <div style={{ padding: 2, display: 'flex', flexShrink: 0 }}>
+                <img src={item.logo} alt={item.ticker}
+                  style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', border: '1px solid rgba(255,255,255,0.15)' }}
+                  onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${item.ticker}&background=252527&color=F9F9FA&size=44`; }}
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {/* Dots */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
+        {bannerMarkets.map((_, i) => (
+          <div key={i} style={{ width: i === activeIdx ? 16 : 4, height: 4, borderRadius: 9999, background: i === activeIdx ? '#16C284' : '#252527', transition: 'width 0.2s, background 0.2s' }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ─────────── Main Banner ─────────── */
 function MainBanner() {
   const [idx, setIdx] = useState(0);
@@ -894,7 +1181,8 @@ function SubBanner() {
 }
 
 /* ─────────── Bottom Stats ─────────── */
-function BottomStats() {
+function BottomStats({ isMobile = false }: { isMobile?: boolean }) {
+  if (isMobile) return null;
   return (
     <div
       style={{
@@ -915,16 +1203,25 @@ function BottomStats() {
     >
       {/* Left: live-data (fills remaining space) */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1 }}>
-        {/* LIVE DATA badge: live_photo_fill icon + label */}
+        {/* LIVE DATA badge: pulsing dot + label */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {/* live_photo_fill — concentric circles with center dot */}
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="#5BD197">
-            <circle cx="12" cy="12" r="3.5" />
-            <path fillRule="evenodd" clipRule="evenodd"
-              d="M12 7a5 5 0 1 0 0 10A5 5 0 0 0 12 7zm-7 5a7 7 0 1 1 14 0A7 7 0 0 1 5 12z"
-              opacity="0.4"
-            />
-          </svg>
+          {/* Pulsing dot */}
+          <span style={{ position: 'relative', display: 'inline-flex', width: 7, height: 7, flexShrink: 0 }}>
+            {/* Ping ring */}
+            <span style={{
+              position: 'absolute', inset: 0,
+              borderRadius: '50%',
+              background: '#5BD197',
+              animation: 'live-ping 1.4s ease-out infinite',
+            }} />
+            {/* Solid center dot */}
+            <span style={{
+              position: 'relative', display: 'inline-flex',
+              width: 7, height: 7,
+              borderRadius: '50%',
+              background: '#5BD197',
+            }} />
+          </span>
           <span style={{ fontSize: 12, fontWeight: 500, color: '#5BD197', lineHeight: '16px', letterSpacing: '0.04em' }}>
             LIVE DATA
           </span>
@@ -1001,28 +1298,46 @@ function BottomStats() {
 
 /* ─────────── Page ─────────── */
 export default function Home() {
+  const isMobile = useIsMobile();
+
   return (
     <div className="min-h-screen" style={{ background: '#0A0A0B' }}>
-      <main className="flex flex-col gap-4 px-8 py-4" style={{ paddingBottom: 60 }}>
+      <main
+        style={{
+          display: 'flex', flexDirection: 'column',
+          gap: isMobile ? 0 : 16,
+          padding: isMobile ? '8px 0' : '16px 32px',
+          paddingBottom: isMobile ? 24 : 60,
+        }}
+      >
         {/* Banners */}
-        <div className="flex gap-4 px-4">
-          <MainBanner />
-          <SubBanner />
-        </div>
+        {isMobile ? (
+          <MobileBannerCarousel />
+        ) : (
+          <div className="flex gap-4 px-4">
+            <MainBanner />
+            <SubBanner />
+          </div>
+        )}
 
         {/* Live Market */}
-        <div className="rounded-lg overflow-hidden">
-          <MarketTable title="Live Market" data={markets} showSearch />
+        <div style={{ borderRadius: isMobile ? 0 : 8, overflow: 'hidden', marginTop: isMobile ? 8 : 0 }}>
+          <MarketTable title="Live Market" data={markets} showSearch isMobile={isMobile} />
         </div>
 
         {/* Recent Trades */}
-        <div className="rounded-lg overflow-hidden">
-          <RecentTradesTable />
-        </div>
+        {isMobile ? (
+          <div style={{ marginTop: 16 }}>
+            <MobileRecentTrades />
+          </div>
+        ) : (
+          <div className="rounded-lg overflow-hidden">
+            <RecentTradesTable />
+          </div>
+        )}
       </main>
 
-      {/* Bottom Stats — fixed to screen bottom */}
-      <BottomStats />
+      <BottomStats isMobile={isMobile} />
     </div>
   );
 }

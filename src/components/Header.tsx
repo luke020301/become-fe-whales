@@ -1,6 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
+import { useWallet } from '../context/WalletContext';
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
+  return isMobile;
+}
 
 // ─── Icons ──────────────────────────────────────────────────────────────────────
 const ChevronDown = () => (
@@ -64,6 +75,20 @@ const NETWORKS = [
 const CheckIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
     <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+  </svg>
+);
+
+const MenuIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+    <line x1="2.5" y1="4.5" x2="17.5" y2="4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <line x1="2.5" y1="10" x2="17.5" y2="10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <line x1="2.5" y1="15.5" x2="17.5" y2="15.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+  </svg>
+);
+
+const CloseIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z" />
   </svg>
 );
 
@@ -269,12 +294,22 @@ function DashboardModal({ onClose }: { onClose: () => void }) {
 function ConnectWalletModal({ onClose, onConnect }: { onClose: () => void; onConnect: () => void }) {
   const [activeNetwork, setActiveNetwork] = useState('solana');
   const [hoveredWallet, setHoveredWallet] = useState<string | null>(null);
+  const [connectingWallet, setConnectingWallet] = useState<string | null>(null);
 
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev; };
   }, []);
+
+  const handleWalletClick = (walletId: string) => {
+    if (connectingWallet) return;
+    setConnectingWallet(walletId);
+    setTimeout(() => {
+      onConnect();
+      onClose();
+    }, 3000);
+  };
 
   return createPortal(
     <>
@@ -349,36 +384,55 @@ function ConnectWalletModal({ onClose, onConnect }: { onClose: () => void; onCon
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <span style={{ fontSize: 14, fontWeight: 500, color: '#7A7A83' }}>Choose Wallet</span>
           <div style={{ display: 'flex', gap: 16 }}>
-            {WALLET_OPTIONS.map(wallet => (
-              <button
-                key={wallet.id}
-                onClick={() => { onConnect(); onClose(); }}
-                onMouseEnter={() => setHoveredWallet(wallet.id)}
-                onMouseLeave={() => setHoveredWallet(null)}
-                style={{
-                  flex: 1, display: 'flex', alignItems: 'center', gap: 16,
-                  padding: 16, borderRadius: 12, textAlign: 'left',
-                  border: '1px solid #252527',
-                  background: hoveredWallet === wallet.id ? '#252527' : 'transparent',
-                  cursor: 'pointer', transition: 'background 0.15s',
-                }}
-              >
-                <img src={wallet.icon} alt={wallet.name} style={{ width: 36, height: 36, borderRadius: 8, flexShrink: 0 }} />
-                <span style={{ flex: 1, fontSize: 16, fontWeight: 500, color: '#F9F9FA' }}>{wallet.name}</span>
-                {wallet.hasInstall && (
-                  <span
-                    onClick={e => e.stopPropagation()}
-                    style={{
-                      padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-                      color: '#7A7A83', flexShrink: 0,
-                      background: hoveredWallet === wallet.id ? '#1B1B1C' : '#252527',
-                    }}
-                  >
-                    Install
+            {WALLET_OPTIONS.map(wallet => {
+              const isConnecting = connectingWallet === wallet.id;
+              const isDisabled = !!connectingWallet && !isConnecting;
+              return (
+                <button
+                  key={wallet.id}
+                  onClick={() => handleWalletClick(wallet.id)}
+                  onMouseEnter={() => !connectingWallet && setHoveredWallet(wallet.id)}
+                  onMouseLeave={() => setHoveredWallet(null)}
+                  style={{
+                    flex: 1, display: 'flex', alignItems: 'center', gap: 16,
+                    padding: 16, borderRadius: 12, textAlign: 'left',
+                    border: '1px solid #252527',
+                    background: isConnecting ? '#252527' : hoveredWallet === wallet.id ? '#252527' : 'transparent',
+                    cursor: isDisabled ? 'default' : 'pointer',
+                    opacity: isDisabled ? 0.4 : 1,
+                    transition: 'background 0.15s, opacity 0.15s',
+                  }}
+                >
+                  <img src={wallet.icon} alt={wallet.name} style={{ width: 36, height: 36, borderRadius: 8, flexShrink: 0 }} />
+                  <span style={{ flex: 1, fontSize: 16, fontWeight: 500, color: '#F9F9FA' }}>
+                    {isConnecting ? 'Connecting...' : wallet.name}
                   </span>
-                )}
-              </button>
-            ))}
+                  {isConnecting ? (
+                    /* Spinning loader — loading_3_fill */
+                    <span style={{ display: 'flex', padding: 2, flexShrink: 0 }}>
+                      <svg
+                        width="16" height="16" viewBox="0 0 24 24" fill="#F9F9FA"
+                        style={{ animation: 'spin 0.8s linear infinite' }}
+                      >
+                        <path d="M12 2a10 10 0 0 1 10 10h-2a8 8 0 0 0-8-8V2z" opacity="1" />
+                        <path d="M12 2a10 10 0 0 0-10 10h2a8 8 0 0 1 8-8V2z" opacity="0.3" />
+                      </svg>
+                    </span>
+                  ) : wallet.hasInstall ? (
+                    <span
+                      onClick={e => e.stopPropagation()}
+                      style={{
+                        padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+                        color: '#7A7A83', flexShrink: 0,
+                        background: hoveredWallet === wallet.id ? '#1B1B1C' : '#252527',
+                      }}
+                    >
+                      Install
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -390,15 +444,16 @@ function ConnectWalletModal({ onClose, onConnect }: { onClose: () => void; onCon
 // ─── Header ─────────────────────────────────────────────────────────────────────
 export default function Header() {
   const location = useLocation();
+  const isMobile = useIsMobile();
   const [earnOpen, setEarnOpen] = useState(false);
   const [hoveredEarnItem, setHoveredEarnItem] = useState<string | null>(null);
   const [pointsModalOpen, setPointsModalOpen] = useState(false);
   const [dashboardModalOpen, setDashboardModalOpen] = useState(false);
-  const [connected, setConnected] = useState(true);
-  const [walletOpen, setWalletOpen] = useState(false);
+  const { connected, setConnected, walletOpen, setWalletOpen } = useWallet();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [hoveredUserItem, setHoveredUserItem] = useState<string | null>(null);
   const [toast, setToast] = useState<{ label: string; description: string } | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const showToast = (label: string, description: string) => {
     setToast({ label, description });
@@ -434,6 +489,263 @@ export default function Header() {
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
   }, [networkOpen]);
+
+  // ── Mobile header ──────────────────────────────────────────────────────────────
+  if (isMobile) {
+    const currentNetwork = NETWORKS.find(n => n.id === selectedNetwork);
+    return (
+      <header
+        className="sticky top-0 z-50"
+        style={{ borderBottom: '1px solid #1B1B1C', backgroundColor: '#0A0A0B', padding: '12px 0' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '0 16px' }}>
+          {/* logo + menu button — hamburger first, then logo icon (per Figma logo+menu order) */}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 36, height: 36, borderRadius: 8, padding: 6,
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: '#F9F9FA', flexShrink: 0,
+              }}
+            >
+              <MenuIcon />
+            </button>
+            <Link to="/" style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+              <img src="/images/icon-whale.svg" alt="WhalesMarket" style={{ width: 30, height: 26 }} />
+            </Link>
+          </div>
+
+          {/* header functions */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            {connected ? (
+              <>
+                {/* Chain */}
+                <button
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: 8, border: '1px solid #252527', borderRadius: 8,
+                    background: 'none', cursor: 'pointer',
+                  }}
+                >
+                  <img src={currentNetwork?.icon} alt={selectedNetwork} style={{ width: 16, height: 16, objectFit: 'cover' }} />
+                </button>
+
+                {/* Balance */}
+                <button
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '8px 12px 8px 8px', border: '1px solid #252527', borderRadius: 8,
+                    background: 'none', cursor: 'pointer',
+                  }}
+                >
+                  <div style={{ padding: 2, display: 'flex' }}>
+                    <img src="/images/icon-wallet.png" alt="wallet" style={{ width: 16, height: 16, objectFit: 'cover' }} />
+                  </div>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: '#F9F9FA', lineHeight: '1.43em' }}>18.32</span>
+                </button>
+
+                {/* Avatar */}
+                <div style={{ padding: 2, display: 'flex' }}>
+                  <WalletAvatar size={32} />
+                </div>
+              </>
+            ) : (
+              <button
+                onClick={() => setWalletOpen(true)}
+                style={{
+                  padding: '8px 16px', borderRadius: 8, cursor: 'pointer',
+                  background: '#F9F9FA', color: '#0A0A0B',
+                  border: 'none', fontSize: 14, fontWeight: 500,
+                }}
+              >
+                Connect
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Mobile drawer */}
+        {mobileMenuOpen && createPortal(
+          <>
+            <div
+              onClick={() => setMobileMenuOpen(false)}
+              style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(2px)' }}
+            />
+            <div style={{
+              position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 301,
+              width: 288, background: '#1B1B1C',
+              boxShadow: '0px 0px 32px 0px rgba(0,0,0,0.2)',
+              display: 'flex', flexDirection: 'column',
+            }}>
+              {/* Drawer header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 16, flexShrink: 0 }}>
+                <Link to="/" onClick={() => setMobileMenuOpen(false)} style={{ display: 'flex' }}>
+                  <img src="/images/logo-whalesmarket.svg" alt="WhalesMarket" style={{ height: 28, width: 'auto' }} />
+                </Link>
+                <button
+                  onClick={() => setMobileMenuOpen(false)}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: 32, height: 32, borderRadius: 8,
+                    background: '#252527', border: 'none', cursor: 'pointer', color: '#7A7A83',
+                  }}
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+
+              {/* Nav sections */}
+              <nav style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+                {/* Markets */}
+                <div style={{ padding: '0 12px 12px' }}>
+                  <div style={{ padding: '2px 12px', fontSize: 12, fontWeight: 500, color: '#7A7A83', lineHeight: '1.33em', marginBottom: 4 }}>Markets</div>
+                  <Link to="/" onClick={() => setMobileMenuOpen(false)} style={{
+                    display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8,
+                    textDecoration: 'none', background: '#252527', color: '#5BD197',
+                    fontSize: 14, fontWeight: 500, lineHeight: '1.43em', marginBottom: 4,
+                  }}>
+                    <img src="/images/icon-menu-premarket.svg" alt="" style={{ width: 20, height: 20, flexShrink: 0 }} />
+                    Pre-market
+                  </Link>
+                  <button onClick={() => { setPointsModalOpen(true); setMobileMenuOpen(false); }} style={{
+                    display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
+                    padding: '8px 12px', borderRadius: 8, background: 'none',
+                    color: '#F9F9FA', fontSize: 14, fontWeight: 500, lineHeight: '1.43em',
+                    border: 'none', cursor: 'pointer',
+                  }}>
+                    <img src="/images/icon-menu-pointmarket.svg" alt="" style={{ width: 20, height: 20, flexShrink: 0 }} />
+                    Points Market
+                  </button>
+                </div>
+
+                {/* Earn */}
+                <div style={{ padding: '0 12px 12px' }}>
+                  <div style={{ padding: '2px 12px', fontSize: 12, fontWeight: 500, color: '#7A7A83', lineHeight: '1.33em', marginBottom: 4 }}>Earn</div>
+                  {[
+                    { key: 'staking',    label: 'Staking',    icon: '/images/icon-menu-staking.svg'    },
+                    { key: 'incentives', label: 'Incentives', icon: '/images/icon-menu-incentives.svg' },
+                    { key: 'referral',   label: 'Referral',   icon: '/images/icon-menu-referral.svg'   },
+                  ].map((item, idx, arr) => (
+                    <div key={item.key} style={{
+                      display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8,
+                      background: 'none', marginBottom: idx < arr.length - 1 ? 4 : 0, cursor: 'pointer',
+                    }}>
+                      <img src={item.icon} alt="" style={{ width: 20, height: 20, flexShrink: 0 }} />
+                      <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: '#F9F9FA', lineHeight: '1.43em' }}>{item.label}</span>
+                      <span style={{ fontSize: 10, fontWeight: 500, color: '#7A7A83', background: '#0A0A0B', padding: '3px 6px', borderRadius: 4, flexShrink: 0 }}>Soon</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* More */}
+                <div style={{ padding: '0 12px 12px' }}>
+                  <div style={{ padding: '2px 12px', fontSize: 12, fontWeight: 500, color: '#7A7A83', lineHeight: '1.33em', marginBottom: 4 }}>More</div>
+                  <button onClick={() => { setDashboardModalOpen(true); setMobileMenuOpen(false); }} style={{
+                    display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
+                    padding: '8px 12px', borderRadius: 8, background: 'none',
+                    color: '#F9F9FA', fontSize: 14, fontWeight: 500, lineHeight: '1.43em',
+                    border: 'none', cursor: 'pointer', marginBottom: 4,
+                  }}>
+                    <img src="/images/icon-menu-dashboard.svg" alt="" style={{ width: 20, height: 20, flexShrink: 0 }} />
+                    Dashboard
+                  </button>
+                  <a href="https://docs.whales.market/" target="_blank" rel="noopener noreferrer" style={{
+                    display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8,
+                    background: 'none', color: '#F9F9FA', fontSize: 14, fontWeight: 500, lineHeight: '1.43em',
+                    textDecoration: 'none',
+                  }}>
+                    <img src="/images/icon-menu-about.svg" alt="" style={{ width: 20, height: 20, flexShrink: 0 }} />
+                    About Whales Market
+                  </a>
+                </div>
+              </nav>
+
+              {/* Bottom */}
+              <div style={{ flexShrink: 0 }}>
+                {/* Stats */}
+                <div style={{ borderTop: '1px solid #252527', padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: '#B4B4BA' }}>Total Vol</span>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: '#F9F9FA' }}>$5,375,932.81</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: '#B4B4BA' }}>Vol 24h</span>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: '#F9F9FA' }}>$832,750.55</span>
+                  </div>
+                </div>
+                {/* Links + social */}
+                <div style={{ borderTop: '1px solid #252527', padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div style={{ display: 'flex', gap: 16 }}>
+                    {[
+                      { label: 'Docs', href: 'https://docs.whales.market/' },
+                      { label: 'Dune', href: 'https://dune.com' },
+                      { label: 'Link3', href: 'https://link3.to' },
+                    ].map(l => (
+                      <a key={l.label} href={l.href} target="_blank" rel="noopener noreferrer" style={{
+                        display: 'flex', alignItems: 'center', gap: 4,
+                        fontSize: 14, fontWeight: 500, color: '#B4B4BA', textDecoration: 'none',
+                      }}>
+                        {l.label}
+                        <ExternalLinkIcon />
+                      </a>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <a href="https://x.com/WhalesMarket" target="_blank" rel="noopener noreferrer" style={{ color: '#B4B4BA', display: 'flex' }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.741l7.73-8.835L1.254 2.25H8.08l4.259 5.631zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                    </a>
+                    <a href="https://discord.gg/whalesmarket" target="_blank" rel="noopener noreferrer" style={{ color: '#B4B4BA', display: 'flex' }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057.101 18.08.114 18.1.132 18.113a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>,
+          document.body
+        )}
+
+        {/* Modals */}
+        {pointsModalOpen && <PointsMarketModal onClose={() => setPointsModalOpen(false)} />}
+        {dashboardModalOpen && <DashboardModal onClose={() => setDashboardModalOpen(false)} />}
+        {walletOpen && (
+          <ConnectWalletModal
+            onClose={() => setWalletOpen(false)}
+            onConnect={() => { setConnected(true); showToast('Wallet connected', "You've successfully connected your wallet"); }}
+          />
+        )}
+
+        {/* Toast */}
+        {toast && createPortal(
+          <div style={{
+            position: 'fixed', bottom: 24, left: 16, right: 16, zIndex: 9999,
+            background: '#1B1B1C', borderRadius: 10, padding: '12px 16px',
+            display: 'flex', alignItems: 'flex-start', gap: 12,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          }}>
+            <div style={{ flexShrink: 0, marginTop: 2 }}>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <circle cx="10" cy="10" r="10" fill="#16C284" fillOpacity="0.2" />
+                <path d="M6 10.5l3 3 5-5" stroke="#16C284" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 500, color: '#F9F9FA' }}>{toast.label}</div>
+              <div style={{ fontSize: 12, color: '#7A7A83', marginTop: 2 }}>{toast.description}</div>
+            </div>
+            <button onClick={() => setToast(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#7A7A83', padding: 0 }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
+              </svg>
+            </button>
+          </div>,
+          document.body
+        )}
+      </header>
+    );
+  }
 
   return (
     <header

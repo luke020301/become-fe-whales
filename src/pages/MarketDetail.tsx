@@ -1,9 +1,49 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useWallet } from '../context/WalletContext';
 import { markets } from '../mock-data/markets';
 import { recentTrades } from '../mock-data/trades';
 import mascotWhale from '../assets/mascot-whale-frame.png';
 import emptyOrdersIllustration from '../assets/empty-orders-illustration.png';
+
+/* ─── Tooltip ─── */
+function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <span
+      style={{ position: 'relative', display: 'inline-block' }}
+      onMouseEnter={() => setVisible(true)}
+      onMouseLeave={() => setVisible(false)}
+    >
+      {children}
+      {visible && (
+        <span style={{
+          position: 'absolute',
+          bottom: 'calc(100% + 10px)',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: '#252527',
+          borderRadius: 8,
+          padding: '8px 12px',
+          fontSize: 12,
+          color: '#F9F9FA',
+          whiteSpace: 'nowrap',
+          zIndex: 200,
+          pointerEvents: 'none',
+          lineHeight: 1.5,
+          boxShadow: '0 0 8px 0 rgba(0,0,0,0.1)',
+        }}>
+          {text}
+          {/* centered SVG arrow */}
+          <svg width="16" height="8" viewBox="0 0 16 8" fill="none"
+            style={{ position: 'absolute', bottom: -8, left: '50%', transform: 'translateX(-50%)' }}>
+            <path d="M0 0 L8 8 L16 0 Z" fill="#252527" />
+          </svg>
+        </span>
+      )}
+    </span>
+  );
+}
 
 /* ─── helpers ─── */
 const fmt = (n: number, dec = 2) =>
@@ -94,12 +134,18 @@ function PriceChart({
   setTimeRange,
   chartType,
   setChartType,
+  marketPrice,
+  marketChange,
+  totalVol,
 }: {
   ticker: string;
   timeRange: string;
   setTimeRange: (v: string) => void;
   chartType: string;
   setChartType: (v: string) => void;
+  marketPrice: number;
+  marketChange: number;
+  totalVol: number;
 }) {
   const [hover, setHover] = useState<{ dataIdx: number } | null>(null);
   const [now, setNow] = useState(() => new Date());
@@ -228,7 +274,7 @@ function PriceChart({
         </div>
         <div style={{ width: 1, alignSelf: 'stretch', background: '#1B1B1C', flexShrink: 0 }} />
         <div style={{ display: 'flex', gap: 4, flex: 1 }}>
-          {['Price', 'FDV'].map(t => (
+          {['Price'].map(t => (
             <button key={t} onClick={() => setChartType(t)} style={{
               padding: '2px 8px', borderRadius: 4, border: 'none', cursor: 'pointer',
               background: chartType === t ? '#1B1B1C' : 'transparent',
@@ -309,9 +355,9 @@ function PriceChart({
             <div style={{ display: 'flex', gap: 4 }}>
               <span style={{ fontSize: 12, color: '#7A7A83' }}>Last Price</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontSize: 12, color: '#F9F9FA' }}>${lastPrice.toFixed(4)}</span>
-                <span style={{ fontSize: 12, color: lastChange >= 0 ? '#5BD197' : '#FD5E67' }}>
-                  {lastChange >= 0 ? '+' : ''}{lastChange.toFixed(2)}%
+                <span style={{ fontSize: 12, color: '#F9F9FA' }}>${marketPrice.toFixed(4)}</span>
+                <span style={{ fontSize: 12, color: marketChange >= 0 ? '#5BD197' : '#FD5E67' }}>
+                  {marketChange >= 0 ? '+' : ''}{marketChange.toFixed(2)}%
                 </span>
               </div>
             </div>
@@ -374,7 +420,7 @@ function PriceChart({
             height: 16, display: 'flex', alignItems: 'center',
             padding: '0 4px', whiteSpace: 'nowrap',
           }}>
-            <span style={{ fontSize: 10, color: '#F9F9FA', fontWeight: 500, lineHeight: 1 }}>{lastPrice.toFixed(4)}</span>
+            <span style={{ fontSize: 10, color: '#F9F9FA', fontWeight: 500, lineHeight: 1 }}>{marketPrice.toFixed(4)}</span>
           </div>
           {/* Hover price pill — height:16, centered */}
           {hoverPt && hoverPillTop && (
@@ -405,7 +451,7 @@ function PriceChart({
           {/* Total Vol. label — top-left of volume area */}
           <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 4, pointerEvents: 'none', zIndex: 1 }}>
             <span style={{ fontSize: 12, color: '#7A7A83' }}>Total Vol.</span>
-            <span style={{ fontSize: 12, color: '#F9F9FA' }}>${fmt(CHART_DATA.reduce((s, d) => s + d.volume * d.price, 0), 1)}</span>
+            <span style={{ fontSize: 12, color: '#F9F9FA' }}>${fmt(totalVol)}</span>
           </div>
           <svg viewBox={`0 0 ${W} ${VH}`} preserveAspectRatio="none"
             style={{ width: '100%', height: '100%', display: 'block' }}>
@@ -639,6 +685,7 @@ function OrderBookRow({
 export default function MarketDetail() {
   const { id }     = useParams();
   const navigate   = useNavigate();
+  const { connected, setWalletOpen } = useWallet();
   const market     = markets.find(m => m.id === id);
   const collateralDDRef = useRef<HTMLDivElement>(null);
   const fillDDRef = useRef<HTMLDivElement>(null);
@@ -1137,7 +1184,7 @@ export default function MarketDetail() {
             MAIN 2-COL LAYOUT
             ══════════════════════════════════════ */}
         {/* layout_QYPFU4 — row, gap:16, fill */}
-        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', marginTop: 24 }}>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
 
           {/* ═══════════════════════════════════════
               LEFT: market frame (Figma: 37315-160537)
@@ -1363,6 +1410,9 @@ export default function MarketDetail() {
                 ticker={market.ticker}
                 timeRange={timeRange} setTimeRange={setTimeRange}
                 chartType={chartType} setChartType={setChartType}
+                marketPrice={market.price}
+                marketChange={market.priceChange24h}
+                totalVol={market.openInterest}
               />
             </div>}
 
@@ -1761,50 +1811,71 @@ export default function MarketDetail() {
 
               {/* action button (Figma: layout_MOR1WN — row, stretch, gap:8) */}
               <div style={{ display: 'flex', alignSelf: 'stretch', gap: 8 }}>
-                <button
-                  disabled={!selectedOrder}
-                  onClick={() => { if (selectedOrder) { setConfirmChecked(false); setShowConfirmModal(true); } }}
-                  style={{
-                    flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center',
-                    gap: 8, padding: '10px 20px', borderRadius: 10, border: 'none',
-                    cursor: selectedOrder ? 'pointer' : 'not-allowed',
-                    background: selectedOrder
-                      ? (selectedSide === 'buy' ? '#16C284' : '#FF3B46')
-                      : '#F9F9FA',
-                    fontSize: 16, fontWeight: 500,
-                    color: selectedOrder ? '#F9F9FA' : '#0A0A0B',
-                    opacity: selectedOrder ? 1 : 0.4,
-                    transition: 'opacity 0.15s',
-                  }}
-                  onMouseEnter={e => { if (selectedOrder) e.currentTarget.style.opacity = '0.88'; }}
-                  onMouseLeave={e => { e.currentTarget.style.opacity = selectedOrder ? '1' : '0.4'; }}
-                >
-                  {selectedSide === 'buy' ? 'Buy' : selectedSide === 'sell' ? 'Sell' : ('Trade ' + market.ticker)}
-                </button>
+                {!connected ? (
+                  <button
+                    onClick={() => setWalletOpen(true)}
+                    style={{
+                      flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center',
+                      gap: 8, padding: '10px 20px', borderRadius: 10, border: 'none',
+                      cursor: 'pointer',
+                      background: '#F9F9FA',
+                      fontSize: 16, fontWeight: 500,
+                      color: '#0A0A0B',
+                      transition: 'opacity 0.15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.opacity = '0.88'; }}
+                    onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
+                  >
+                    Connect Wallet
+                  </button>
+                ) : (
+                  <button
+                    disabled={!selectedOrder}
+                    onClick={() => { if (selectedOrder) { setConfirmChecked(false); setShowConfirmModal(true); } }}
+                    style={{
+                      flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center',
+                      gap: 8, padding: '10px 20px', borderRadius: 10, border: 'none',
+                      cursor: selectedOrder ? 'pointer' : 'not-allowed',
+                      background: selectedOrder
+                        ? (selectedSide === 'buy' ? '#16C284' : '#FF3B46')
+                        : '#F9F9FA',
+                      fontSize: 16, fontWeight: 500,
+                      color: selectedOrder ? '#F9F9FA' : '#0A0A0B',
+                      opacity: selectedOrder ? 1 : 0.4,
+                      transition: 'opacity 0.15s',
+                    }}
+                    onMouseEnter={e => { if (selectedOrder) e.currentTarget.style.opacity = '0.88'; }}
+                    onMouseLeave={e => { e.currentTarget.style.opacity = selectedOrder ? '1' : '0.4'; }}
+                  >
+                    {selectedSide === 'buy' ? 'Buy' : selectedSide === 'sell' ? 'Sell' : ('Trade ' + market.ticker)}
+                  </button>
+                )}
               </div>
 
               {/* oder-info-group (Figma: layout_KCNEQI — column, gap:8, fill) */}
               <div style={{ display: 'flex', flexDirection: 'column', alignSelf: 'stretch', gap: 8 }}>
                 {[
-                  { label: 'Price',          value: selectedOrder ? ('$' + selectedOrder.price.toFixed(4)) : '-' },
-                  { label: 'Amount Deliver', value: selectedOrder
+                  { label: 'Price',          tooltip: 'The unit price per token set by the order maker.',      value: selectedOrder ? ('$' + selectedOrder.price.toFixed(4)) : '-' },
+                  { label: 'Amount Deliver', tooltip: 'The amount you need to send to complete this trade.',   value: selectedOrder
                     ? (selectedSide === 'buy'
                       ? selectedOrder.collateral.toFixed(2) + ' SOL'
                       : selectedOrder.amount.toLocaleString() + ' ' + market.ticker)
                     : '-' },
-                  { label: 'To be Received', value: selectedOrder
+                  { label: 'To be Received', tooltip: 'The amount you will receive once the trade is filled.', value: selectedOrder
                     ? (selectedSide === 'buy'
                       ? fmtK(selectedOrder.amount) + ' ' + market.ticker
                       : selectedOrder.collateral.toFixed(2) + ' SOL')
                     : '-' },
                 ].map(row => (
                   <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
-                    <span style={{
-                      fontSize: 14, color: '#7A7A83',
-                      borderBottom: '1px dashed #2E2E34', paddingBottom: 2,
-                    }}>
-                      {row.label}
-                    </span>
+                    <Tooltip text={row.tooltip}>
+                      <span style={{
+                        fontSize: 14, color: '#7A7A83',
+                        borderBottom: '1px dashed #2E2E34', paddingBottom: 2, cursor: 'default',
+                      }}>
+                        {row.label}
+                      </span>
+                    </Tooltip>
                     <span style={{ fontSize: 14, fontWeight: 500, color: '#F9F9FA' }}>
                       {row.value}
                     </span>
