@@ -813,7 +813,7 @@ export default function MarketDetail() {
 
   function toggleSort(prev: { key: SortKey; dir: SortDir }, key: SortKey) {
     if (prev.key === key) {
-      const next = prev.dir === null ? 'asc' : prev.dir === 'asc' ? 'desc' : null;
+      const next: SortDir = prev.dir === null ? 'asc' : prev.dir === 'asc' ? 'desc' : null;
       return { key, dir: next };
     }
     return { key, dir: 'asc' as SortDir };

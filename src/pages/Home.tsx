@@ -257,10 +257,11 @@ type SortStates = Partial<Record<SortKey, SortDir>>;
 
 /* ─────────── Status badge ─────────── */
 function StatusChip({ status }: { status: Market['status'] }) {
-  const map = {
+  const map: Record<string, { label: string; bg: string; color: string }> = {
     'in-progress':      { label: 'In Progress',      bg: 'rgba(59,130,246,0.1)',  color: '#60A5FA' },
     'settling':         { label: 'Settling',          bg: 'rgba(22,194,132,0.1)', color: '#5BD197' },
     'upcoming-settle':  { label: 'Upcoming Settle',   bg: 'rgba(234,179,8,0.1)',  color: '#FACC15' },
+    'ended':            { label: 'Ended',             bg: 'rgba(122,122,131,0.1)', color: '#7A7A83' },
   };
   const s = map[status];
   return (
