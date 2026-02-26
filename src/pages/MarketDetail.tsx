@@ -137,27 +137,34 @@ function PriceChart({
   /* SVG viewport */
   const W = 820; const PH = 300; const VH = 100;
 
-  /* Fixed Y scale — Figma right axis: 0.0050, 0.0040, 0.0030, 0.0020, 0.0010
-     YPAD=38 aligns gridlines with space-between label centers (32px padding + 6px half-item-height) */
-  const minP = 0.0010;
-  const maxP = 0.0050;
+  /* Dynamic Y scale with breathing room (scaleMargins top:0.2, bottom:0.2) */
+  const dataMinP = data.length ? Math.min(...data.map(d => d.price)) : 0.0010;
+  const dataMaxP = data.length ? Math.max(...data.map(d => d.price)) : 0.0050;
+  const priceRange = dataMaxP - dataMinP || 0.0001;
+  const marginRatio = 0.2;
+  const minP = dataMinP - priceRange * marginRatio;
+  const maxP = dataMaxP + priceRange * marginRatio;
   const YPAD = 38;
-  const toX = (i: number) => (i / (data.length - 1)) * W;
-  const toY = (v: number) => (PH - YPAD) - ((v - minP) / (maxP - minP)) * (PH - YPAD * 2);
+  const toX = (i: number) => data.length > 1 ? (i / (data.length - 1)) * W : W / 2;
+  const yRange = maxP - minP || 1;
+  const toY = (v: number) => YPAD + ((maxP - v) / yRange) * (PH - YPAD * 2);
 
   const pts = data.map((d, i) => ({ x: toX(i), y: toY(d.price) }));
   const linePath = makeSmoothPath(pts);
-  const areaPath = `${linePath} L${W},${PH} L0,${PH} Z`;
+  const areaPath = `${linePath} L${toX(data.length - 1)},${PH} L0,${PH} Z`;
 
-  const lastIdx  = data.length - 1;
-  const lastPrice = data[lastIdx].price;
+  const lastIdx  = Math.max(0, data.length - 1);
+  const lastPrice = data.length ? data[lastIdx].price : 0;
   const lastY     = toY(lastPrice);
-  const lastChange = (lastPrice - data[0].price) / data[0].price * 100;
+  const lastChange = data.length > 1 ? (lastPrice - data[0].price) / data[0].price * 100 : 0;
 
-  /* Fixed Y-axis ticks (Figma: layout_0F2LFP — 0.0050 → 0.0010 in 0.001 steps) */
-  const yTicks = [0.0050, 0.0040, 0.0030, 0.0020, 0.0010].map(v => ({
-    label: v.toFixed(4), ySvg: toY(v),
-  }));
+  /* Dynamic Y-axis ticks (5 evenly spaced) */
+  const tickCount = 5;
+  const tickStep = (maxP - minP) / (tickCount - 1);
+  const yTicks = Array.from({ length: tickCount }, (_, i) => {
+    const v = maxP - i * tickStep;
+    return { label: v.toFixed(4), ySvg: toY(v) };
+  });
 
   /* volume scale */
   const maxVol = Math.max(...data.map(d => d.volume));
@@ -537,10 +544,10 @@ const CoinIcon = ({ symbol, size = 16 }: { symbol: string; size?: number }) => {
   );
 };
 /* Figma: table-heading-sort — 16×16, up/down arrows */
-const SortIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-    <path d="M8 3L5.5 6H10.5L8 3Z" fill="#7A7A83" />
-    <path d="M8 13L10.5 10H5.5L8 13Z" fill="#7A7A83" />
+const SortIcon = ({ dir }: { dir?: 'asc' | 'desc' | null }) => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ cursor: 'pointer' }}>
+    <path d="M8 3L5.5 6H10.5L8 3Z" fill={dir === 'asc' ? '#F9F9FA' : '#7A7A83'} />
+    <path d="M8 13L10.5 10H5.5L8 13Z" fill={dir === 'desc' ? '#F9F9FA' : '#7A7A83'} />
   </svg>
 );
 
@@ -633,6 +640,10 @@ export default function MarketDetail() {
   const { id }     = useParams();
   const navigate   = useNavigate();
   const market     = markets.find(m => m.id === id);
+  const collateralDDRef = useRef<HTMLDivElement>(null);
+  const fillDDRef = useRef<HTMLDivElement>(null);
+  const orderDDRef = useRef<HTMLDivElement>(null);
+  const aboutDDRef = useRef<HTMLDivElement>(null);
 
   const [selectedOrder, setSelectedOrder]         = useState<OrderData | null>(null);
   const [selectedSide, setSelectedSide]           = useState<'buy' | 'sell' | null>(null);
@@ -641,9 +652,13 @@ export default function MarketDetail() {
   const [timeRange, setTimeRange]                 = useState('1d');
   const [chartType, setChartType]                 = useState('Price');
   const [showTbaTooltip, setShowTbaTooltip]       = useState(false);
-  const [collateral, setCollateral]               = useState('USDC');
+  const [collateral, setCollateral]               = useState('All');
+  const [showCollateralDD, setShowCollateralDD]   = useState(false);
   const [fillType, setFillType]                   = useState('All');
+  const [showFillDD, setShowFillDD]               = useState(false);
   const [orderType, setOrderType]                 = useState('All');
+  const [showOrderDD, setShowOrderDD]             = useState(false);
+  const [showAboutDD, setShowAboutDD]             = useState(false);
   const [showChart, setShowChart]                 = useState(true);
   const [showConfirmModal, setShowConfirmModal]   = useState(false);
   const [confirmChecked, setConfirmChecked]       = useState(false);
@@ -673,6 +688,53 @@ export default function MarketDetail() {
     return () => clearTimeout(timer);
   }, [showSuccessToast]);
 
+  /* close collateral dropdown on click outside */
+  useEffect(() => {
+    if (!showCollateralDD) return;
+    function handler(e: MouseEvent) {
+      if (collateralDDRef.current && !collateralDDRef.current.contains(e.target as Node)) {
+        setShowCollateralDD(false);
+      }
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showCollateralDD]);
+
+  /* close fill dropdown on click outside */
+  useEffect(() => {
+    if (!showFillDD) return;
+    function handler(e: MouseEvent) {
+      if (fillDDRef.current && !fillDDRef.current.contains(e.target as Node)) {
+        setShowFillDD(false);
+      }
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showFillDD]);
+
+  /* close order dropdown on click outside */
+  useEffect(() => {
+    if (!showOrderDD) return;
+    function handler(e: MouseEvent) {
+      if (orderDDRef.current && !orderDDRef.current.contains(e.target as Node)) {
+        setShowOrderDD(false);
+      }
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showOrderDD]);
+
+  useEffect(() => {
+    if (!showAboutDD) return;
+    function handler(e: MouseEvent) {
+      if (aboutDDRef.current && !aboutDDRef.current.contains(e.target as Node)) {
+        setShowAboutDD(false);
+      }
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showAboutDD]);
+
   /* lock body scroll when modal open */
   useEffect(() => {
     if (showConfirmModal) { document.body.style.overflow = 'hidden'; }
@@ -695,6 +757,29 @@ export default function MarketDetail() {
   }
 
   const isTBA        = market.settlementDate === null;
+
+  /* orderbook sort */
+  type SortKey = 'price' | 'amount' | 'collateral';
+  type SortDir = 'asc' | 'desc' | null;
+  const [sellSort, setSellSort] = useState<{ key: SortKey; dir: SortDir }>({ key: 'price', dir: null });
+  const [buySort, setBuySort]   = useState<{ key: SortKey; dir: SortDir }>({ key: 'price', dir: null });
+
+  function toggleSort(prev: { key: SortKey; dir: SortDir }, key: SortKey) {
+    if (prev.key === key) {
+      const next = prev.dir === null ? 'asc' : prev.dir === 'asc' ? 'desc' : null;
+      return { key, dir: next };
+    }
+    return { key, dir: 'asc' as SortDir };
+  }
+
+  function sortOrders(orders: typeof SELL_ORDERS, sort: { key: SortKey; dir: SortDir }) {
+    if (!sort.dir) return orders;
+    const sorted = [...orders].sort((a, b) => a[sort.key] - b[sort.key]);
+    return sort.dir === 'desc' ? sorted.reverse() : sorted;
+  }
+
+  const sortedSell   = sortOrders(SELL_ORDERS, sellSort);
+  const sortedBuy    = sortOrders(BUY_ORDERS, buySort);
   const maxSell      = Math.max(...SELL_ORDERS.map(o => o.collateral));
   const maxBuy       = Math.max(...BUY_ORDERS.map(o => o.collateral));
   const currentOrders = activeTab === 'filled' ? MY_FILLED_ORDERS : MY_OPEN_ORDERS;
@@ -921,36 +1006,103 @@ export default function MarketDetail() {
             {/* social group */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
 
-              {/* "About SKATE" grouped button (text + chevron) */}
-              <div style={{ display: 'flex', border: '1px solid #252527', borderRadius: 8, overflow: 'hidden' }}>
-                {/* About text + arrow-right-up icon */}
-                <button
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    padding: '8px 8px 8px 16px', cursor: 'pointer',
-                    background: 'transparent', border: 'none', borderRight: '1px solid #252527',
-                    fontSize: 14, fontWeight: 500, lineHeight: '20px',
-                    color: '#F9F9FA', whiteSpace: 'nowrap',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(249,249,250,0.04)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                >
-                  About {market.ticker}
-                  <span style={{ color: '#F9F9FA', display: 'flex' }}><ArrowRightUpIcon /></span>
-                </button>
-                {/* Dropdown chevron (icon-only) */}
-                <button
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    padding: '8px', cursor: 'pointer',
-                    background: 'transparent', border: 'none',
-                    color: '#7A7A83',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(249,249,250,0.04)'; e.currentTarget.style.color = '#F9F9FA'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#7A7A83'; }}
-                >
-                  <ChevronDown />
-                </button>
+              {/* "About SKATE" grouped button (text + chevron) + dropdown */}
+              <div ref={aboutDDRef} style={{ position: 'relative' }}>
+                <div style={{ display: 'flex', border: '1px solid #252527', borderRadius: 8, overflow: 'hidden' }}>
+                  {/* About text + arrow-right-up icon */}
+                  <a
+                    href="https://coin98.net/skate"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '8px 8px 8px 16px', cursor: 'pointer',
+                      background: 'transparent', border: 'none', borderRight: '1px solid #252527',
+                      fontSize: 14, fontWeight: 500, lineHeight: '20px',
+                      color: '#F9F9FA', whiteSpace: 'nowrap', textDecoration: 'none',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(249,249,250,0.04)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    About {market.ticker}
+                    <span style={{ color: '#F9F9FA', display: 'flex' }}><ArrowRightUpIcon /></span>
+                  </a>
+                  {/* Dropdown chevron (icon-only) */}
+                  <button
+                    onClick={() => setShowAboutDD(v => !v)}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      padding: '8px', cursor: 'pointer',
+                      background: 'transparent', border: 'none',
+                      color: '#7A7A83',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(249,249,250,0.04)'; e.currentTarget.style.color = '#F9F9FA'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#7A7A83'; }}
+                  >
+                    <ChevronDown />
+                  </button>
+                </div>
+                {showAboutDD && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 50,
+                    width: 208, background: '#1B1B1C', borderRadius: 12,
+                    boxShadow: '0px 0px 32px rgba(0,0,0,0.2)',
+                    display: 'flex', flexDirection: 'column', padding: 8, gap: 4,
+                  }}>
+                    {/* X Profile */}
+                    <a
+                      href="https://x.com/skate_chain"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setShowAboutDD(false)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '6px 8px', borderRadius: 8,
+                        background: 'transparent', textDecoration: 'none', cursor: 'pointer',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#252527'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      <span style={{ display: 'flex', alignItems: 'center', padding: 2 }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                          <path fillRule="evenodd" clipRule="evenodd" d="M19.753 4.659C19.8395 4.56011 19.9056 4.44516 19.9477 4.32071C19.9897 4.19626 20.0069 4.06475 19.9981 3.93368C19.9893 3.80261 19.9548 3.67455 19.8965 3.55682C19.8383 3.43908 19.7574 3.33398 19.6585 3.2475C19.5596 3.16102 19.4447 3.09487 19.3202 3.05282C19.1958 3.01077 19.0642 2.99364 18.9332 3.00242C18.8021 3.01119 18.6741 3.0457 18.5563 3.10396C18.4386 3.16223 18.3335 3.24311 18.247 3.342L13.137 9.182L8.8 3.4C8.70685 3.2758 8.58607 3.175 8.44721 3.10557C8.30836 3.03614 8.15525 3 8 3H4C3.81429 3 3.63225 3.05171 3.47427 3.14935C3.31629 3.24698 3.18863 3.38668 3.10557 3.55279C3.02252 3.71889 2.98736 3.90484 3.00404 4.08981C3.02072 4.27477 3.08857 4.45143 3.2 4.6L9.637 13.182L4.247 19.342C4.16053 19.4409 4.09437 19.5558 4.05232 19.6803C4.01027 19.8047 3.99314 19.9363 4.00192 20.0673C4.01069 20.1984 4.0452 20.3264 4.10347 20.4442C4.16173 20.5619 4.24261 20.667 4.3415 20.7535C4.44039 20.84 4.55534 20.9061 4.67979 20.9482C4.80424 20.9902 4.93575 21.0074 5.06682 20.9986C5.19789 20.9898 5.32595 20.9553 5.44368 20.897C5.56142 20.8388 5.66652 20.7579 5.753 20.659L10.863 14.818L15.2 20.6C15.2931 20.7242 15.4139 20.825 15.5528 20.8944C15.6916 20.9639 15.8448 21 16 21H20C20.1857 21 20.3678 20.9483 20.5257 20.8507C20.6837 20.753 20.8114 20.6133 20.8944 20.4472C20.9775 20.2811 21.0126 20.0952 20.996 19.9102C20.9793 19.7252 20.9114 19.5486 20.8 19.4L14.363 10.818L19.753 4.659ZM16.5 19L6 5H7.5L18 19H16.5Z" fill="white"/>
+                        </svg>
+                      </span>
+                      <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: '#F9F9FA' }}>X Profile</span>
+                      <span style={{ display: 'flex', alignItems: 'center', padding: 2 }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                          <path d="M16.004 9.414L7.397 18.021L5.983 16.607L14.589 8H7.004V6H18.004V17H16.004V9.414Z" fill="white"/>
+                        </svg>
+                      </span>
+                    </a>
+                    {/* Website */}
+                    <a
+                      href="https://linktr.ee/skatechain"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setShowAboutDD(false)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '6px 8px', borderRadius: 8,
+                        background: 'transparent', textDecoration: 'none', cursor: 'pointer',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#252527'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      <span style={{ display: 'flex', alignItems: 'center', padding: 2 }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                          <path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm-2.29-2.333A17.9 17.9 0 0 1 8.027 13H4.062a8.008 8.008 0 0 0 5.648 6.667zM10.03 13c.151 2.439.848 4.73 1.97 6.752A15.905 15.905 0 0 0 13.97 13h-3.94zm9.908 0h-3.965a17.9 17.9 0 0 1-1.683 6.667A8.008 8.008 0 0 0 19.938 13zM4.062 11h3.965A17.9 17.9 0 0 1 9.71 4.333 8.008 8.008 0 0 0 4.062 11zm5.969 0h3.938A15.905 15.905 0 0 0 12 4.248 15.905 15.905 0 0 0 10.03 11zm4.259-6.667A17.9 17.9 0 0 1 15.973 11h3.965a8.008 8.008 0 0 0-5.648-6.667z" fill="white"/>
+                        </svg>
+                      </span>
+                      <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: '#F9F9FA' }}>Website</span>
+                      <span style={{ display: 'flex', alignItems: 'center', padding: 2 }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                          <path d="M16.004 9.414L7.397 18.021L5.983 16.607L14.589 8H7.004V6H18.004V17H16.004V9.414Z" fill="white"/>
+                        </svg>
+                      </span>
+                    </a>
+                  </div>
+                )}
               </div>
 
             </div>
@@ -972,6 +1124,11 @@ export default function MarketDetail() {
             >
               <AddFillIcon />
               Create Order
+              <span style={{
+                fontSize: 10, fontWeight: 500, lineHeight: '1em',
+                color: '#7A7A83', background: '#E5E5E6',
+                padding: '3px 6px', borderRadius: 4,
+              }}>Soon</span>
             </button>
           </div>
         </div>
@@ -1008,9 +1165,180 @@ export default function MarketDetail() {
               </div>
               {/* buttons: row, gap:8 (Figma: layout_17I9IR) */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {filterBtn('Collateral', collateral, () => setCollateral(c => c === 'USDC' ? 'USDT' : 'USDC'))}
-                {filterBtn('Fill', fillType, () => setFillType(v => v === 'All' ? 'Partial' : 'All'))}
-                {filterBtn('Order', orderType, () => setOrderType(v => v === 'All' ? 'Limit' : 'All'))}
+                {/* Collateral dropdown (Figma: select-token, 192px, br:10) */}
+                <div ref={collateralDDRef} style={{ position: 'relative' }}>
+                  <button
+                    onClick={() => { setShowCollateralDD(v => !v); setShowFillDD(false); setShowOrderDD(false); }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '8px 8px 8px 16px', borderRadius: 8, cursor: 'pointer',
+                      background: showCollateralDD ? '#252527' : '#1B1B1C', border: 'none',
+                      fontSize: 14, fontWeight: 500, color: '#F9F9FA', whiteSpace: 'nowrap',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#252527'; }}
+                    onMouseLeave={e => { if (!showCollateralDD) e.currentTarget.style.background = '#1B1B1C'; }}
+                  >
+                    Collateral: {collateral}
+                    <span style={{ color: '#7A7A83', display: 'flex' }}><ChevronDown /></span>
+                  </button>
+                  {showCollateralDD && (
+                    <div style={{
+                      position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 50,
+                      width: 192, background: '#1B1B1C', borderRadius: 10,
+                      boxShadow: '0px 0px 32px rgba(0,0,0,0.2)',
+                      display: 'flex', flexDirection: 'column',
+                    }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: 8 }}>
+                        <div style={{ padding: '4px 8px' }}>
+                          <span style={{ fontSize: 12, fontWeight: 500, color: '#7A7A83' }}>Select Token</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {[
+                            { value: 'All', icon: 'pig_money' },
+                            { value: 'USDT', logo: '/images/logo-usdt.png' },
+                            { value: 'USDC', logo: '/images/logo-usdc.png' },
+                            { value: 'SOL', logo: '/images/logo-sol.png' },
+                          ].map(opt => {
+                            const isActive = collateral === opt.value;
+                            return (
+                              <button
+                                key={opt.value}
+                                onClick={() => { setCollateral(opt.value); setShowCollateralDD(false); }}
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: 8,
+                                  padding: '6px 8px', borderRadius: 8, border: 'none',
+                                  background: isActive ? '#252527' : 'transparent',
+                                  cursor: 'pointer', width: '100%', textAlign: 'left',
+                                }}
+                                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#252527'; }}
+                                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                              >
+                                {opt.icon ? (
+                                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
+                                    <circle cx="10" cy="10" r="9" fill="#F9F9FA" />
+                                    <rect x="10" y="4.5" width="7.78" height="7.78" rx="1.5" transform="rotate(45 10 4.5)" fill="#1B1B1C" />
+                                  </svg>
+                                ) : (
+                                  <img src={opt.logo} alt="" style={{ width: 20, height: 20, borderRadius: '50%', flexShrink: 0 }}
+                                    onError={e => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${opt.value}&size=20&background=252527&color=F9F9FA`; }}
+                                  />
+                                )}
+                                <span style={{ fontSize: 14, fontWeight: 500, color: '#F9F9FA', flex: 1 }}>{opt.value}</span>
+                                {isActive && (
+                                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
+                                    <path d="M8 14.25L3.75 10L5.16 8.59L8 11.42L14.84 4.58L16.25 6L8 14.25Z" fill="#5BD197" />
+                                  </svg>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {/* Fill dropdown (Figma: dropdown-filter, 192px, br:10) */}
+                <div ref={fillDDRef} style={{ position: 'relative' }}>
+                  <button
+                    onClick={() => { setShowFillDD(v => !v); setShowCollateralDD(false); setShowOrderDD(false); }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '8px 8px 8px 16px', borderRadius: 8, cursor: 'pointer',
+                      background: showFillDD ? '#252527' : '#1B1B1C', border: 'none',
+                      fontSize: 14, fontWeight: 500, color: '#F9F9FA', whiteSpace: 'nowrap',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#252527'; }}
+                    onMouseLeave={e => { if (!showFillDD) e.currentTarget.style.background = '#1B1B1C'; }}
+                  >
+                    {fillType === 'All' ? 'Fill: All' : fillType}
+                    <span style={{ color: '#7A7A83', display: 'flex' }}><ChevronDown /></span>
+                  </button>
+                  {showFillDD && (
+                    <div style={{
+                      position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 50,
+                      width: 192, background: '#1B1B1C', borderRadius: 10,
+                      boxShadow: '0px 0px 32px rgba(0,0,0,0.2)',
+                    }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: 8 }}>
+                        {['All', 'Partial Fill', 'Full Fill'].map(opt => {
+                          const isActive = fillType === opt;
+                          return (
+                            <button
+                              key={opt}
+                              onClick={() => { setFillType(opt); setShowFillDD(false); }}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 8,
+                                padding: '6px 8px', borderRadius: 8, border: 'none',
+                                background: isActive ? '#252527' : 'transparent',
+                                cursor: 'pointer', width: '100%', textAlign: 'left',
+                              }}
+                              onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#252527'; }}
+                              onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                            >
+                              <span style={{ fontSize: 14, fontWeight: 500, color: '#F9F9FA', flex: 1 }}>{opt}</span>
+                              {isActive && (
+                                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
+                                  <path d="M8 14.25L3.75 10L5.16 8.59L8 11.42L14.84 4.58L16.25 6L8 14.25Z" fill="#5BD197" />
+                                </svg>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {/* Order dropdown (Figma: dropdown-filter, 192px, br:10) */}
+                <div ref={orderDDRef} style={{ position: 'relative' }}>
+                  <button
+                    onClick={() => { setShowOrderDD(v => !v); setShowCollateralDD(false); setShowFillDD(false); }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '8px 8px 8px 16px', borderRadius: 8, cursor: 'pointer',
+                      background: showOrderDD ? '#252527' : '#1B1B1C', border: 'none',
+                      fontSize: 14, fontWeight: 500, color: '#F9F9FA', whiteSpace: 'nowrap',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#252527'; }}
+                    onMouseLeave={e => { if (!showOrderDD) e.currentTarget.style.background = '#1B1B1C'; }}
+                  >
+                    {orderType === 'All' ? 'Order: All' : orderType}
+                    <span style={{ color: '#7A7A83', display: 'flex' }}><ChevronDown /></span>
+                  </button>
+                  {showOrderDD && (
+                    <div style={{
+                      position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 50,
+                      width: 192, background: '#1B1B1C', borderRadius: 10,
+                      boxShadow: '0px 0px 32px rgba(0,0,0,0.2)',
+                    }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: 8 }}>
+                        {['All', 'Normal', 'Resell Position'].map(opt => {
+                          const isActive = orderType === opt;
+                          return (
+                            <button
+                              key={opt}
+                              onClick={() => { setOrderType(opt); setShowOrderDD(false); }}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 8,
+                                padding: '6px 8px', borderRadius: 8, border: 'none',
+                                background: isActive ? '#252527' : 'transparent',
+                                cursor: 'pointer', width: '100%', textAlign: 'left',
+                              }}
+                              onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#252527'; }}
+                              onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                            >
+                              <span style={{ fontSize: 14, fontWeight: 500, color: '#F9F9FA', flex: 1 }}>{opt}</span>
+                              {isActive && (
+                                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
+                                  <path d="M8 14.25L3.75 10L5.16 8.59L8 11.42L14.84 4.58L16.25 6L8 14.25Z" fill="#5BD197" />
+                                </svg>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 {/* icon-only chart button (Figma: layout_U09NN2 — padding:8, active=green #5BD197) */}
                 <button
                   onClick={() => setShowChart(v => !v)}
@@ -1048,22 +1376,22 @@ export default function MarketDetail() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
                   {/* Column headers (Figma: table-heading — row, padding:0 8px, cell padding:2px 0) */}
                   <div style={{ display: 'flex', alignItems: 'center', padding: '0 8px' }}>
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2, padding: '8px 0' }}>
+                    <div onClick={() => setSellSort(s => toggleSort(s, 'price'))} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2, padding: '8px 0', cursor: 'pointer' }}>
                       <span style={{ fontSize: 12, color: '#7A7A83' }}>Price ($)</span>
-                      <SortIcon />
+                      <SortIcon dir={sellSort.key === 'price' ? sellSort.dir : null} />
                     </div>
-                    <div style={{ width: 96, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2, padding: '8px 0' }}>
+                    <div onClick={() => setSellSort(s => toggleSort(s, 'amount'))} style={{ width: 96, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2, padding: '8px 0', cursor: 'pointer' }}>
                       <span style={{ fontSize: 12, color: '#7A7A83' }}>Amount</span>
-                      <SortIcon />
+                      <SortIcon dir={sellSort.key === 'amount' ? sellSort.dir : null} />
                     </div>
-                    <div style={{ width: 120, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2, padding: '8px 0' }}>
+                    <div onClick={() => setSellSort(s => toggleSort(s, 'collateral'))} style={{ width: 120, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2, padding: '8px 0', cursor: 'pointer' }}>
                       <span style={{ fontSize: 12, color: '#7A7A83' }}>Collateral</span>
-                      <SortIcon />
+                      <SortIcon dir={sellSort.key === 'collateral' ? sellSort.dir : null} />
                     </div>
                     {/* "All" header hidden per Figma (opacity:0) */}
                     <div style={{ width: 120, opacity: 0 }} />
                   </div>
-                  {SELL_ORDERS.map(order => (
+                  {sortedSell.map(order => (
                     <OrderBookRow key={order.id} order={order} side="sell" maxCol={maxSell}
                       isSelected={selectedOrder?.id === order.id}
                       onSelect={() => selectOrder(order, 'buy')}
@@ -1078,22 +1406,22 @@ export default function MarketDetail() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
                   {/* Column headers */}
                   <div style={{ display: 'flex', alignItems: 'center', padding: '0 8px' }}>
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2, padding: '8px 0' }}>
+                    <div onClick={() => setBuySort(s => toggleSort(s, 'price'))} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2, padding: '8px 0', cursor: 'pointer' }}>
                       <span style={{ fontSize: 12, color: '#7A7A83' }}>Price ($)</span>
-                      <SortIcon />
+                      <SortIcon dir={buySort.key === 'price' ? buySort.dir : null} />
                     </div>
-                    <div style={{ width: 96, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2, padding: '8px 0' }}>
+                    <div onClick={() => setBuySort(s => toggleSort(s, 'amount'))} style={{ width: 96, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2, padding: '8px 0', cursor: 'pointer' }}>
                       <span style={{ fontSize: 12, color: '#7A7A83' }}>Amount</span>
-                      <SortIcon />
+                      <SortIcon dir={buySort.key === 'amount' ? buySort.dir : null} />
                     </div>
-                    <div style={{ width: 120, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2, padding: '8px 0' }}>
+                    <div onClick={() => setBuySort(s => toggleSort(s, 'collateral'))} style={{ width: 120, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2, padding: '8px 0', cursor: 'pointer' }}>
                       <span style={{ fontSize: 12, color: '#7A7A83' }}>Collateral</span>
-                      <SortIcon />
+                      <SortIcon dir={buySort.key === 'collateral' ? buySort.dir : null} />
                     </div>
                     {/* "All" header hidden per Figma (opacity:0) */}
                     <div style={{ width: 120, opacity: 0 }} />
                   </div>
-                  {BUY_ORDERS.map(order => (
+                  {sortedBuy.map(order => (
                     <OrderBookRow key={order.id} order={order} side="buy" maxCol={maxBuy}
                       isSelected={selectedOrder?.id === order.id}
                       onSelect={() => selectOrder(order, 'sell')}
@@ -1785,11 +2113,22 @@ export default function MarketDetail() {
                 </div>
                 {/* notice text */}
                 <span style={{ fontSize: 14, color: '#B4B4BA', lineHeight: 1.43 }}>
-                  You'll receive your tokens after Settle Starts when seller settles.
-                  {'\n\n'}
-                  If they don't settle by Settle Ends, you can cancel the order to get back
-                  your deposited {selectedOrder.collateral.toFixed(2)} SOL plus{' '}
-                  {selectedOrder.collateral.toFixed(2)} SOL compensation from their collateral.
+                  {selectedSide === 'buy' ? (
+                    <>
+                      You'll receive your tokens after Settle Starts when seller settles.
+                      {'\n\n'}
+                      If they don't settle by Settle Ends, you can cancel the order to get back
+                      your deposited {selectedOrder.collateral.toFixed(2)} SOL plus{' '}
+                      {selectedOrder.collateral.toFixed(2)} SOL compensation from their collateral.
+                    </>
+                  ) : (
+                    <>
+                      You'll receive payment after settling the order once Settle Starts.
+                      {'\n\n'}
+                      If you don't settle by Settle Ends, the buyer can cancel the order
+                      and claim your deposited {selectedOrder.collateral.toFixed(2)} SOL as compensation.
+                    </>
+                  )}
                 </span>
                 {/* checkbox */}
                 <div
@@ -1822,7 +2161,7 @@ export default function MarketDetail() {
               style={{
                 display: 'flex', justifyContent: 'center', alignItems: 'center',
                 gap: 8, padding: '10px 20px', borderRadius: 10, border: 'none',
-                background: '#16C284',
+                background: selectedSide === 'buy' ? '#16C284' : '#FF3B46',
                 opacity: (confirmChecked && !pendingApproval) ? 1 : 0.4,
                 fontSize: 16, fontWeight: 500, color: '#F9F9FA',
                 cursor: (confirmChecked && !pendingApproval) ? 'pointer' : 'not-allowed',
